@@ -1,0 +1,413 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+<![CDATA[
+'tabs=4
+-----------------------------------------------------------------------------------------
+
+Wise Global Weather Server for ACP
+==================================================
+
+Script:         WiseWeather.wsc
+Author:         Arie Blumenzweig <theblumz@gmail.com>
+Version:        1.0
+Requires:       ACP 8.0 or later
+                Windows Script 5.6 or later (installed by ACP setup)
+
+Description:    This ACP Weather Server queries the central SafeToOperate
+		        ASCOM SafetyMonitor served by the ASCOM Remote Server (Alpaca)
+				running on the site's central machine (132.6.65.9).
+
+				It gets a boolean reflecting whether it is now safe to operate and
+				returns it as its get_Safe() value.
+
+				This setup allows centralized safety decisions to be used by all the 
+				observatories at the Wise campus.
+                
+Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                provides ACP and its scripts with Weather information. This component
+                is responsible for providing the interface with a weather sensor. You
+                May use the ASCOM Serial device to communicate via RS-232 or if the 
+                weather sensor has an ActiveX/Scriptable interface, you may create an
+                instance of the object, and call directly into that interface.
+                
+Edit History:
+    09-Feb-2020   Initial Edit including new GUID!
+-----------------------------------------------------------------------------------------
+]]>
+	</comment>
+	<component id="ACP.WiseWeather">
+		<?component error="true" debug="false" ?>
+		<registration progid="ACP.WiseWeather" classid="{3D129BC4-3066-412B-A768-630A82B1646F}" description="Queries Wise's central SafeToOperate SafetyMonitor" remotable="no" version="1.0">
+		</registration>
+		<public>
+			<method name="SetupDialog">
+			</method>
+			<property name="Connected">
+				<get/>
+				<put/>
+			</property>
+			<property name="AmbientTemperature">
+				<get/>
+			</property>
+			<property name="BarometricPressure">
+				<get/>
+			</property>
+			<property name="Clouds">
+				<get/>
+			</property>
+			<property name="DewPoint">
+				<get/>
+			</property>
+			<property name="InsideTemperature">
+				<get/>
+			</property>
+			<property name="Name">
+				<get/>
+			</property>
+			<property name="Precipitation">
+				<get/>
+			</property>
+			<property name="RelativeHumidity">
+				<get/>
+			</property>
+			<property name="Safe">
+				<get/>
+			</property>
+			<property name="SkyTemperature">
+				<get/>
+			</property>
+			<property name="WindDirection">
+				<get/>
+			</property>
+			<property name="WindVelocity">
+				<get/>
+			</property>
+		</public>
+		<object id="FileDialog" progid="ACP.FileDialog" events="false" reference="true"/>
+		<object id="FSO" progid="Scripting.FileSystemObject" events="false" reference="false"/>
+		<object id="Util" progid="ACP.Util" events="false" reference="true"/>
+		<script id="WiseWeather" language="VBScript">
+<![CDATA[
+Option Explicit
+
+Const PROG = "ACP.SafeToOperate"
+Const ERR_SOURCE = "ACP.SafeToOperate"
+Const PRP = "Property "				' Common bits for error messages
+Const NTI = " is not implemented"
+'
+' Polling interval, do not read file more often than this
+'
+Const POLL_INT = #00:01:00#
+
+'
+' Code outside of any Function or Sub is executed when this object is created.
+'
+Dim connected
+Dim lastQueryTime
+Dim lastSafe
+Dim serverAnswers
+Dim localStationIsReliable	' Should be set to True if the Boltwood station provides reliable data, to False otherwise
+Dim localStation
+Dim serverAddr, serverPort, serverUrl
+Dim lastUnsafeReasons
+
+lastQueryTime = CDate(Now - POLL_INT)
+lastSafe = True
+lastUnsafeReasons = ""
+connected = False
+serverAnswers = False
+localStationIsReliable = False
+localStation = Null
+Dim v
+
+serverAddr = Util.Profile.GetValue("WiseWeather", "Server", "132.66.65.9")
+serverPort = Util.Profile.GetValue("WiseWeather", "Port", "11111")
+v = Util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")
+If v = "True" Then
+	localStationIsReliable = True
+Else
+	localStationIsReliable = False
+End If
+
+serverUrl = "http://" & serverAddr & ":" & serverPort & "/api/v1/"
+
+If localStationIsReliable and localStation = Null Then
+	localStation = CreateObject("ACP.BoltwoodServer")
+End If
+
+'------------------------------------------------------------------------------
+' Method SetupDialog()
+'
+' Parameters:   (none)
+' Returns:      (nothing)
+'
+' Invokes the weather access setup dialog. I put in a file selection dialog,
+' courtesy of ACP's Util object which you have use of automatically here.
+'------------------------------------------------------------------------------
+Sub SetupDialog()
+	Dim response
+
+	response = InputBox("The Wise server's IP address", "Server address", serverAddr)
+	if not response = "" Then
+		serverAddr = response
+		Util.Profile.WriteValue "WiseWeather", serverAddr, "Server"
+	End If
+
+	response = InputBox("The Wise server's IP port", "Server port", serverPort)
+	if not response = "" Then
+		serverPort = response
+		Util.Profile.WriteValue "WiseWeather", serverPort, "Port"
+	End If	
+
+	response = MsgBox("Is the local weather station reliable?", vbYesNo)
+	if response = vbYes Then
+		localStationIsReliable = True
+	Else
+		localStationIsReliable = False
+	End If
+	Util.Profile.WriteValue "WiseWeather", localStationIsReliable, "LocalStationIsReliable"
+
+End Sub
+
+'------------------------------------------------------------------------------
+' Property Connected (R/W, REQUIRED)
+'
+' True means weather sensor is connected and operating (Boolean). 
+' Set True to connect.
+'------------------------------------------------------------------------------
+' dim Connected									            ' PrimalScript UI target (typ.)
+Function get_Connected()
+	get_Connected = connected
+End Function
+
+Function put_Connected(newValue)
+    connected = newValue
+
+    If newValue Then
+        Util.Console.PrintLine("Safety: connected")
+    Else
+        Util.Console.PrintLine("Safety: disconnected")
+    End If
+End Function
+
+'------------------------------------------------------------------------------
+' Property AmbientTemperature (R/O, OPTIONAL)
+'
+' The ambient (outside) air temperature (Single, deg.C)
+'------------------------------------------------------------------------------
+' Dim AmbientTemperature
+Function get_AmbientTemperature()
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get AmbientTemperature" & NTI
+	If serverAnswers Then
+		get_AmbientTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/temperature")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_AmbientTemperature = localStation.AmbientTemperature
+	End If
+End Function
+
+'------------------------------------------------------------------------------
+' Property BarometricPressure (R/O, OPTIONAL)
+'
+' The barometric pressure (Single, millibars)
+' NOTE: This must be in millibars, per international aviation weather reporting
+'       standards.
+'------------------------------------------------------------------------------
+' Dim BarometricPressure
+Function get_BarometricPressure()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get BarometricPressure" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property Clouds (R/O, OPTIONAL)
+'
+' Cloud coverage (Single, fractional 0-1)
+'------------------------------------------------------------------------------
+' Dim Clouds
+Function get_Clouds()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Clouds" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property DewPoint (R/O, OPTIONAL)
+'
+' The dew point temperature (Single, deg C)
+'------------------------------------------------------------------------------
+' Dim DewPoint
+Function get_DewPoint()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get DewPoint" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property InsideTemperature (R/O, OPTIONAL)
+'
+' The temperature inside the observatory (Single, deg C)
+'------------------------------------------------------------------------------
+' Dim InsideTemperature
+Function get_InsideTemperature()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get InsideTemperature" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property Name (R/O, OPTIONAL)
+'
+' The display name of the weather system (String)
+'------------------------------------------------------------------------------
+' dim Name
+Function get_Name()
+    get_Name = PROG
+End Function
+
+'------------------------------------------------------------------------------
+' Property Precipitation (R/O, OPTIONAL)
+'
+' True if precipitation is present (Boolean)
+'------------------------------------------------------------------------------
+' Dim Precipitation
+Function get_Precipitation()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Precipitation" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property RelativeHumidity (R/O, OPTIONAL)
+'
+' The relative humidity (Single, fractional 0-1)
+'------------------------------------------------------------------------------
+' Dim RelativeHumidity
+Function get_RelativeHumidity()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get RelativeHumidity" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property Safe (R/O, REQUIRED)
+'
+' Return True when weather is safe, False when not. Returning False will
+' stop any ACP script in progress and cause alarm and shutdown processes
+' to be initiated.
+'------------------------------------------------------------------------------
+' dim Safe
+Function get_Safe()
+	get_Safe = WiseIsSafe
+
+	If Not get_Safe And lastSafe Then                ' If this is a change from safe to unsafe
+		Util.Console.PrintLine("Safety: Wise became unsafe to operate!")
+	ElseIf get_safe and not lastSafe Then
+		Util.Console.PrintLine("Safety: Wise became safe to operate!")
+	End If
+    
+	lastSafe = get_Safe
+	
+End Function
+
+'------------------------------------------------------------------------------
+' Property SkyTemperature (R/O, OPTIONAL)
+'
+' The sky temperature (Single, deg C)
+'------------------------------------------------------------------------------
+' Dim SkyTemperature
+Function get_SkyTemperature()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get SkyTemperature" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property WindDirection (R/O, OPTIONAL)
+'
+' The azimuth FROM which the wind is blowing (Single, deg. magnetic)
+' NOTE: This must be in degrees MAGNETIC, per international aviation weather 
+'       reporting standards.
+'------------------------------------------------------------------------------
+' Dim WindDirection
+Function get_WindDirection()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindDirection" & NTI
+End Function
+
+'------------------------------------------------------------------------------
+' Property WindVelocity (R/O, OPTIONAL)
+'
+' The wind velocity (Single, knots)
+'------------------------------------------------------------------------------
+' Dim WindVelocity
+Function get_WindVelocity()
+	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindVelocity" & NTI
+End Function
+
+Function WiseIsSafe()
+	Dim response, seconds
+			
+	seconds = DateDiff("s", lastQueryTime, Now)
+	If (seconds < 60) Then
+		WiseIsSafe = lastSafe
+		Exit Function
+	End If
+
+    response = HTTPRequest("PUT", serverUrl & "safetymonitor/0/action", "Action=wise-issafe&Parameters=")
+
+	If (response = "failed") Then
+		Util.Console.PrintLine("Safety: query to server (dome-pc) failed!")
+		If localStationIsReliable and not localStation = Null Then
+			WiseIsSafe = localStation.Safe
+		Else
+			WiseIsSafe = False
+		End If
+	ElseIf (response = "False") Then
+		WiseIsSafe = False
+		response = HTTPRequest ("PUT", serverUrl & "safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
+        If response <> lastUnsafeReasons Then
+            lastUnsafeReasons = response
+            Util.Console.PrintLine("Safety: Wise is NOT safe (" & response & ")")
+        End If
+	ElseIf (response = "True") Then
+		WiseIsSafe = True
+	End If
+	
+	lastQueryTime = Now
+End Function
+
+Function HTTPRequest(verb, url, data)
+	Dim server, response
+    
+	set server = CreateObject("MSXML2.ServerXMLHTTP")
+	server.setTimeouts 1000, 1000, 2000, 2000
+    'Util.Console.PrintLine("Verb: " & verb & " url: " & url & " data: " & data)
+
+	On Error Resume Next
+	server.open verb, url, false
+
+    If 0 = Err.Number Then
+	   server.setRequestHeader "Content-Type", "application/json"
+       Select Case verb
+        Case "GET"
+            server.Send
+        Case "PUT"
+            server.setRequestHeader "Content-Length", Len(data)
+            server.Send(data)
+       End Select
+
+       On Error Resume Next
+	   If (Err.Number = 0 and server.readyState = 4) Then
+			HTTPRequest = Value(server.responseText)
+            'Util.Console.PrintLine("HTTP " & verb & ": response: " & HTTPRequest)
+			serverAnswers = True
+	   Else
+			HTTPRequest = "failed"
+			serverAnswers = False
+	   End If
+
+    End If
+
+	set server = Nothing
+	
+End Function
+
+Function Value(json)
+    With CreateObject("ScriptControl")
+        .Language = "JScript"
+        With .Eval("(" + json + ")")
+            Value = .Value
+        End With
+    End With
+End Function
+]]>
+		</script>
+	</component>
+</package>
