@@ -146,15 +146,16 @@ End If
 ' courtesy of ACP's Util object which you have use of automatically here.
 '------------------------------------------------------------------------------
 Sub SetupDialog()
-	Dim response
+	Dim response, preamble
 
-	response = InputBox("The Wise server's IP address", "Server address", serverAddr)
+	preamble = "This ACP Weather Sever contacts" & Chr(13) & " the central Wise computer" & Chr(13) & Chr(13) & "  What is the server's "
+	response = InputBox(preamble & "address?", "Server address", serverAddr)
 	if not response = "" Then
 		serverAddr = response
 		Util.Profile.WriteValue "WiseWeather", serverAddr, "Server"
 	End If
 
-	response = InputBox("The Wise server's IP port", "Server port", serverPort)
+	response = InputBox(preamble & "port?", "Server port", serverPort)
 	if not response = "" Then
 		serverPort = response
 		Util.Profile.WriteValue "WiseWeather", serverPort, "Port"
