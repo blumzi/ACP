@@ -146,16 +146,15 @@ End If
 ' courtesy of ACP's Util object which you have use of automatically here.
 '------------------------------------------------------------------------------
 Sub SetupDialog()
-	Dim response, preamble
+	Dim response
 
-	preamble = "This ACP Weather Sever contacts" & Chr(13) & " the central Wise computer" & Chr(13) & Chr(13) & "  What is the server's "
-	response = InputBox(preamble & "address?", "Server address", serverAddr)
+	response = InputBox("The Wise server's IP address", "Server address", serverAddr)
 	if not response = "" Then
 		serverAddr = response
 		Util.Profile.WriteValue "WiseWeather", serverAddr, "Server"
 	End If
 
-	response = InputBox(preamble & "port?", "Server port", serverPort)
+	response = InputBox("The Wise server's IP port", "Server port", serverPort)
 	if not response = "" Then
 		serverPort = response
 		Util.Profile.WriteValue "WiseWeather", serverPort, "Port"
@@ -333,7 +332,7 @@ Function get_WindVelocity()
 End Function
 
 Function WiseIsSafe()
-	Dim response, seconds
+	Dim response, seconds, i, items
 			
 	seconds = DateDiff("s", lastQueryTime, Now)
 	If (seconds < 60) Then
@@ -355,7 +354,17 @@ Function WiseIsSafe()
 		response = HTTPRequest ("PUT", serverUrl & "safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
         If response <> lastUnsafeReasons Then
             lastUnsafeReasons = response
-            Util.Console.PrintLine("Safety: Wise is NOT safe (" & response & ")")
+            If (InStr(response, "HumanIntervention")) Then
+                response = replace(response, chr(34), "")
+                response = replace(response, "[", "")
+                response = replace(response, "]", "")
+                items = Split(response, ";")
+                For i=1 to UBound(items)
+                    Util.Console.PrintLine("Safety: HumanIntervention: " & items(i))
+                Next
+            Else
+                Util.Console.PrintLine("Safety: Wise is NOT safe: " & response)
+            End If
         End If
 	ElseIf (response = "True") Then
 		WiseIsSafe = True
