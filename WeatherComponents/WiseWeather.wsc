@@ -198,11 +198,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim AmbientTemperature
 Function get_AmbientTemperature()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get AmbientTemperature" & NTI
 	If serverAnswers Then
-		get_AmbientTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/temperature")
+		get_AmbientTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/temperature", "")
 	ElseIf localStationIsReliable and not localStation = Null Then
 		get_AmbientTemperature = localStation.AmbientTemperature
+  Else
+		Err.Raise &H80040400, ERR_SOURCE, "Cannot get AmbientTemperature"
 	End If
 End Function
 
