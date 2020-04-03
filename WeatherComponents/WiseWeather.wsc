@@ -198,12 +198,11 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim AmbientTemperature
 Function get_AmbientTemperature()
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get AmbientTemperature" & NTI
 	If serverAnswers Then
 		get_AmbientTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/temperature", "")
 	ElseIf localStationIsReliable and not localStation = Null Then
 		get_AmbientTemperature = localStation.AmbientTemperature
-  Else
-		Err.Raise &H80040400, ERR_SOURCE, "Cannot get AmbientTemperature"
 	End If
 End Function
 
@@ -216,7 +215,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim BarometricPressure
 Function get_BarometricPressure()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get BarometricPressure" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get BarometricPressure" & NTI
+	If serverAnswers Then
+		get_BarometricPressure = HTTPRequest("GET", serverUrl & "observingconditions/0/pressure", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_BarometricPressure = localStation.BarometricPressure
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -226,7 +230,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim Clouds
 Function get_Clouds()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Clouds" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Clouds" & NTI
+	If serverAnswers Then
+		get_Clouds = HTTPRequest("GET", serverUrl & "observingconditions/0/cloudcover", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_Clouds = localStation.Clouds
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -236,7 +245,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim DewPoint
 Function get_DewPoint()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get DewPoint" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get DewPoint" & NTI
+	If serverAnswers Then
+		get_DewPoint = HTTPRequest("GET", serverUrl & "observingconditions/0/dewpoint", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_DewPoint = localStation.DewPoint
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -266,7 +280,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim Precipitation
 Function get_Precipitation()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Precipitation" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Precipitation" & NTI
+	If serverAnswers Then
+		get_Precipitation = HTTPRequest("GET", serverUrl & "observingconditions/0/rainrate", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_Precipitation = localStation.Precipitation
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -276,7 +295,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim RelativeHumidity
 Function get_RelativeHumidity()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get RelativeHumidity" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get RelativeHumidity" & NTI
+	If serverAnswers Then
+		get_RelativeHumidity = HTTPRequest("GET", serverUrl & "observingconditions/0/humidity", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_RelativeHumidity = localStation.RelativeHumidity
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -307,7 +331,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim SkyTemperature
 Function get_SkyTemperature()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get SkyTemperature" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get SkyTemperature" & NTI
+	If serverAnswers Then
+		get_SkyTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/skytemperature", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_SkyTemperature = localStation.SkyTemperature
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -319,7 +348,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim WindDirection
 Function get_WindDirection()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindDirection" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindDirection" & NTI
+	If serverAnswers Then
+		get_WindDirection = HTTPRequest("GET", serverUrl & "observingconditions/0/winddirection", "")
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_WindDirection = localStation.WindDirection
+	End If
 End Function
 
 '------------------------------------------------------------------------------
@@ -329,7 +363,12 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim WindVelocity
 Function get_WindVelocity()
-	Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindVelocity" & NTI
+	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindVelocity" & NTI
+	If serverAnswers Then
+		get_WindVelocity = HTTPRequest("GET", serverUrl & "observingconditions/0/windspeed", "") * 1.944
+	ElseIf localStationIsReliable and not localStation = Null Then
+		get_WindVelocity = localStation.WindVelocity
+	End If
 End Function
 
 Function WiseIsSafe()
