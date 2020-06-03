@@ -59,9 +59,6 @@ Edit History:
 			<property name="DewPoint">
 				<get/>
 			</property>
-			<property name="InsideTemperature">
-				<get/>
-			</property>
 			<property name="Name">
 				<get/>
 			</property>
@@ -84,17 +81,49 @@ Edit History:
 				<get/>
 			</property>
 		</public>
-		<object id="FileDialog" progid="ACP.FileDialog" events="false" reference="true"/>
 		<object id="FSO" progid="Scripting.FileSystemObject" events="false" reference="false"/>
 		<object id="Util" progid="ACP.Util" events="false" reference="true"/>
 		<script id="WiseWeather" language="VBScript">
 <![CDATA[
 Option Explicit
 
-Const PROG = "ACP.SafeToOperate"
-Const ERR_SOURCE = "ACP.SafeToOperate"
+Const SVR_VERSION = "1.0.0"
+Const PROG = "WiseWeather"
+Const ERR_SOURCE = "ACP.WiseWeather"
 Const PRP = "Property "				' Common bits for error messages
 Const NTI = " is not implemented"
+'
+' Manifest constants from Clarity II
+'
+Const cloudUnknown = 0
+Const cloudClear = 1
+Const cloudCloudy = 2
+Const cloudVeryCloudy = 3
+Const cloudWet = 4      ' Boltwood I only
+Const windUnknown = 0
+Const windCalm = 1
+Const windWindy = 2
+Const windVeryWindy = 3
+Const rainUnknown = 0
+Const rainDry = 1
+Const rainWet = 2      'sensor has water on it
+Const rainRain = 3     'falling rain drops detected
+Const dayUnknown = 0
+Const dayDark = 1
+Const dayLight = 2
+Const dayVeryLight = 3
+Const windUnitsKMH = 0
+Const windUnitsMPH = 1
+Const windUnitsMS = 2
+Const skyUnknown = 0
+Const skyClear = 1
+Const skyCloudy = 2
+Const skyVeryCloudy = 3
+Const skyWet = 4
+'
+' Turn this on to have detailed tracing to a log file
+'
+Const DIAG_TRACE = True
 '
 ' Polling interval, do not read file more often than this
 '
@@ -104,36 +133,57 @@ Const POLL_INT = #00:01:00#
 ' Code outside of any Function or Sub is executed when this object is created.
 '
 Dim connected
-Dim lastQueryTime
+Dim lastIsSafeQueryTime
 Dim lastSafe
-Dim serverAnswers
 Dim localStationIsReliable	' Should be set to True if the Boltwood station provides reliable data, to False otherwise
-Dim localStation
-Dim serverAddr, serverPort, serverUrl
+Dim ClarityII
 Dim lastUnsafeReasons
+Dim hostname
+Dim parking
+Dim Telescope, telescopeParkHA, telescopeParkDec, telescopeAltLimit, telescopeWasConnected
 
-lastQueryTime = CDate(Now - POLL_INT)
+dim dli : set dli = createobject("Wise.DliPowerSwitch")
+
+dim wscript : set wscript = createobject("WScript.Shell")
+
+Const digitalLoggersAddress = "132.66.65.13"
+Dim digitalLoggersHeader
+Dim digitalLoggersUrl
+Dim ie
+Set ie = Nothing
+
+dim wutil : set wutil = createobject("Wise.Util")
+wutil.set_prog_name "WiseWeather"
+
+dim whttp  : set whttp  = createobject("Wise.Http")
+dim wascom : set wascom = createobject("Wise.Ascom")
+
+lastIsSafeQueryTime = CDate(Now - POLL_INT)
 lastSafe = True
 lastUnsafeReasons = ""
 connected = False
-serverAnswers = False
 localStationIsReliable = False
-localStation = Null
-Dim v
+if IsEmpty(ClarityII) then
+    set ClarityII = Nothing
+end if
 
-serverAddr = Util.Profile.GetValue("WiseWeather", "Server", "132.66.65.9")
-serverPort = Util.Profile.GetValue("WiseWeather", "Port", "11111")
-v = Util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")
-If v = "True" Then
-	localStationIsReliable = True
+digitalLoggersUrl = "http://" & digitalLoggersAddress & "/index.htm"
+digitalLoggersHeader = "Authorization: Basic " & whttp.Base64Encode("mizpe" & ":" & "ne'Gev")
+
+If Util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")  = "True" Then
+    localStationIsReliable = True
 Else
 	localStationIsReliable = False
 End If
 
-serverUrl = "http://" & serverAddr & ":" & serverPort & "/api/v1/"
+telescopeParkHA = Util.Profile.GetValue("WiseWeather", "ParkHA", "0")
+telescopeParkDec = Util.Profile.GetValue("WiseWeather", "ParkDec", "0")
+telescopeAltLimit = Util.Profile.GetValue("WiseWeather", "AltLimit", "15")
 
-If localStationIsReliable and localStation = Null Then
-	localStation = CreateObject("ACP.BoltwoodServer")
+hostname = wutil.get_hostname()    ' C28-pc, dome-pc, wo-neo
+
+If localStationIsReliable and ClarityII is Nothing Then
+    Set ClarityII = CreateObject("ClarityII.CloudSensorII")
 End If
 
 '------------------------------------------------------------------------------
@@ -148,16 +198,14 @@ End If
 Sub SetupDialog()
 	Dim response
 
-	response = InputBox("The Wise server's IP address", "Server address", serverAddr)
-	if not response = "" Then
-		serverAddr = response
-		Util.Profile.WriteValue "WiseWeather", serverAddr, "Server"
+	response = InputBox("The Wise server's IP address", "Server address", wascom.Server)
+	if not isempty(response) then
+		wascom.Server = response
 	End If
 
-	response = InputBox("The Wise server's IP port", "Server port", serverPort)
-	if not response = "" Then
-		serverPort = response
-		Util.Profile.WriteValue "WiseWeather", serverPort, "Port"
+	response = InputBox("The Wise server's IP port", "Server port", wascom.Port)
+	if not isempty(response) then
+		wascom.Port = response
 	End If	
 
 	response = MsgBox("Is the local weather station reliable?", vbYesNo)
@@ -168,7 +216,28 @@ Sub SetupDialog()
 	End If
 	Util.Profile.WriteValue "WiseWeather", localStationIsReliable, "LocalStationIsReliable"
 
+    response = InputBox("Telescope altitude limit", "Alt limit (degrees):", telescopeAltLimit)
+    If response <> "" Then
+        telescopeAltLimit = response
+    End If
+	Util.Profile.WriteValue "WiseWeather", telescopeAltLimit, "AltLimit"
+
+    response = InputBox("Telescope parking HourAngle", "HourAngle (hours):", telescopeParkHA)
+    If response <> "" Then
+        telescopeParkHA = response
+    End If
+
+    response = InputBox("Telescope parking Declination", "Declination (degrees):", telescopeParkDec)
+    If response <> "" Then
+        telescopeParkDec = response
+    End If
+	Util.Profile.WriteValue "WiseWeather", telescopeParkDec, "ParkDec"
+
 End Sub
+
+Function IsSuccess(s)
+    IsSuccess = Left(s, 6) <> "error:"
+End Function
 
 '------------------------------------------------------------------------------
 ' Property Connected (R/W, REQUIRED)
@@ -185,10 +254,14 @@ Function put_Connected(newValue)
     connected = newValue
 
     If newValue Then
-        Util.Console.PrintLine("Safety: connected")
+        wutil.trace "Connected (hostname: " & hostname & ", localStationIsReliable: " & localStationIsReliable & ", useLocalStation: " & useLocalStation & ")"
     Else
-        Util.Console.PrintLine("Safety: disconnected")
+        wutil.trace "Disconnected"
     End If
+End Function
+
+Function useLocalStation() 
+    useLocalStation = localStationIsReliable and not ClarityII Is Nothing
 End Function
 
 '------------------------------------------------------------------------------
@@ -198,12 +271,23 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim AmbientTemperature
 Function get_AmbientTemperature()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get AmbientTemperature" & NTI
-	If serverAnswers Then
-		get_AmbientTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/temperature", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_AmbientTemperature = localStation.AmbientTemperature
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/temperature")
+	If IsSuccess(response) Then
+        get_AmbientTemperature = response
+    ElseIf useLocalStation Then
+		get_AmbientTemperature = ClarityII.AmbientT
 	End If
+    wutil.trace "get_AmbientTemperature => " & get_AmbientTemperature
+    'get_BarometricPressure
+    'get_Clouds
+    'get_DewPoint
+    'get_Precipitation
+    'get_RelativeHumidity
+    'get_SkyTemperature
+    'get_WindDirection
+    'get_WindVelocity
 End Function
 
 '------------------------------------------------------------------------------
@@ -215,12 +299,13 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim BarometricPressure
 Function get_BarometricPressure()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get BarometricPressure" & NTI
-	If serverAnswers Then
-		get_BarometricPressure = HTTPRequest("GET", serverUrl & "observingconditions/0/pressure", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_BarometricPressure = localStation.BarometricPressure
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/pressure")
+	If IsSuccess(response) Then
+		get_BarometricPressure = response
 	End If
+    wutil.trace "get_BarometricPressure => " & get_BarometricPressure
 End Function
 
 '------------------------------------------------------------------------------
@@ -230,12 +315,24 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim Clouds
 Function get_Clouds()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Clouds" & NTI
-	If serverAnswers Then
-		get_Clouds = HTTPRequest("GET", serverUrl & "observingconditions/0/cloudcover", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_Clouds = localStation.Clouds
+    Dim response
+
+    response =  wascom.get_url("observingconditions/0/cloudcover")
+	If IsSuccess(response)  Then
+		get_Clouds = response
+	ElseIf useLocalStation Then
+        Select Case ClarityII.CloudCondition
+            Case cloudClear
+                get_Clouds = 0.0
+            Case cloudClear
+                get_Clouds = 0.5
+            Case cloudVeryCloudy
+                get_Clouds = 0.9
+            Case cloudUnknown
+                get_Clouds = 0.0
+        End Select
 	End If
+    wutil.trace "get_Clouds => " & get_Clouds
 End Function
 
 '------------------------------------------------------------------------------
@@ -245,12 +342,15 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim DewPoint
 Function get_DewPoint()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get DewPoint" & NTI
-	If serverAnswers Then
-		get_DewPoint = HTTPRequest("GET", serverUrl & "observingconditions/0/dewpoint", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_DewPoint = localStation.DewPoint
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/dewpoint")
+    If IsSuccess(response) Then
+		get_DewPoint = response
+	ElseIf useLocalStation Then
+		get_DewPoint = ClarityII.DewPointT
 	End If
+    wutil.trace "get_DewPoint => " & get_DewPoint
 End Function
 
 '------------------------------------------------------------------------------
@@ -280,12 +380,15 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim Precipitation
 Function get_Precipitation()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get Precipitation" & NTI
-	If serverAnswers Then
-		get_Precipitation = HTTPRequest("GET", serverUrl & "observingconditions/0/rainrate", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_Precipitation = localStation.Precipitation
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/rainrate")
+	If IsSuccess(response) Then
+		get_Precipitation = response
+	ElseIf useLocalStation Then
+		get_Precipitation = (ClarityII.RainCondition = rainRain)
 	End If
+    wutil.trace "get_Precipitation => " & get_Precipitation
 End Function
 
 '------------------------------------------------------------------------------
@@ -295,12 +398,15 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim RelativeHumidity
 Function get_RelativeHumidity()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get RelativeHumidity" & NTI
-	If serverAnswers Then
-		get_RelativeHumidity = HTTPRequest("GET", serverUrl & "observingconditions/0/humidity", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_RelativeHumidity = localStation.RelativeHumidity
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/humidity")
+	If IsSuccess(response) Then
+		get_RelativeHumidity = response
+	ElseIf useLocalStation Then
+		get_RelativeHumidity = ClarityII.HumidityPercent
 	End If
+    wutil.trace "get_RelativeHumidity => " & get_RelativeHumidity
 End Function
 
 '------------------------------------------------------------------------------
@@ -331,12 +437,15 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim SkyTemperature
 Function get_SkyTemperature()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get SkyTemperature" & NTI
-	If serverAnswers Then
-		get_SkyTemperature = HTTPRequest("GET", serverUrl & "observingconditions/0/skytemperature", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_SkyTemperature = localStation.SkyTemperature
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/skytemperature")
+	If IsSuccess(response)  Then
+		get_SkyTemperature = response
+	ElseIf useLocalStation Then
+		get_SkyTemperature = ClarityII.RelSkyT
 	End If
+    wutil.trace "get_SkyTemperature => " & get_SkyTemperature
 End Function
 
 '------------------------------------------------------------------------------
@@ -348,12 +457,25 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim WindDirection
 Function get_WindDirection()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindDirection" & NTI
-	If serverAnswers Then
-		get_WindDirection = HTTPRequest("GET", serverUrl & "observingconditions/0/winddirection", "")
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_WindDirection = localStation.WindDirection
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/winddirection")
+	If IsSuccess(response) Then
+		get_WindDirection = response
 	End If
+    wutil.trace "get_WindDirection => " & get_WindDirection
+End Function
+
+Function KMHToKnots(kmh)
+    KMHToKnots = kmh / 1.852
+End Function
+
+Function MPHToKnots(mph)
+    MPHToKnots = mph / 1.151
+End Function
+
+Function MSToKnots(ms)
+    MSToKnots = ms * 1.944
 End Function
 
 '------------------------------------------------------------------------------
@@ -363,35 +485,59 @@ End Function
 '------------------------------------------------------------------------------
 ' Dim WindVelocity
 Function get_WindVelocity()
-	'Err.Raise &H80040400, ERR_SOURCE, PRP & "Get WindVelocity" & NTI
-	If serverAnswers Then
-		get_WindVelocity = HTTPRequest("GET", serverUrl & "observingconditions/0/windspeed", "") * 1.944
-	ElseIf localStationIsReliable and not localStation = Null Then
-		get_WindVelocity = localStation.WindVelocity
+    Dim response
+
+    response = wascom.get_url("observingconditions/0/windspeed")
+	If IsSuccess(response) Then
+		get_WindVelocity = MSToKnots(response)
+	ElseIf useLocalStation Then
+        Select Case ClarityII.WindUnits
+            Case windUnitsKMH
+                get_WindVelocity = KMHToKnots(ClarityII.Wind)
+            Case windUnitsMPH
+                get_WindVelocity = MPHToKnots(ClarityII.Wind)
+            Case windUnitsMS
+                get_WindVelocity = MSToKnots(ClarityII.Wind)
+        End Select
+
+        get_WindVelocity = NormalizedClarityIIWind(ClarityII.Wind)
+        wutil.trace "get_WindVelocity => " & get_WindVelocity & " Clarity.Wind: " & ClarityII.Wind & " Clarity.WindUnits: " & ClarityII.WindUnits
 	End If
+End Function
+
+Function NormalizedClarityIIWind(value)
+    Select Case hostname
+        Case "c28-pc"
+            NormalizedClarityIIWind = value '* 0.80
+        Case "wo-neo"
+            NormalizedClarityIIWind = value '* 0.70
+    End Select
 End Function
 
 Function WiseIsSafe()
 	Dim response, seconds, i, items
 			
-	seconds = DateDiff("s", lastQueryTime, Now)
+	seconds = DateDiff("s", lastIsSafeQueryTime, Now)
 	If (seconds < 60) Then
 		WiseIsSafe = lastSafe
 		Exit Function
 	End If
 
-    response = HTTPRequest("PUT", serverUrl & "safetymonitor/0/action", "Action=wise-issafe&Parameters=")
+    response = wascom.put_url("safetymonitor/0/action", "Action=wise-issafe&Parameters=")
 
-	If (response = "failed") Then
-		Util.Console.PrintLine("Safety: query to server (dome-pc) failed!")
-		If localStationIsReliable and not localStation = Null Then
-			WiseIsSafe = localStation.Safe
+	If Not IsSuccess(response) Then
+		If useLocalStation Then
+            WiseIsSafe = _
+                ClarityII.HumidityPercent <= 85.0 And _
+                NormalizedClarityIIWind(ClarityII.Wind) <= 40.0 And _
+                ClarityII.SkyCond = skyClear And _
+                ClarityII.SecondsSinceGoodData < 60
 		Else
 			WiseIsSafe = False
 		End If
 	ElseIf (response = "False") Then
 		WiseIsSafe = False
-		response = HTTPRequest ("PUT", serverUrl & "safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
+		response = wascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
         If response <> lastUnsafeReasons Then
             lastUnsafeReasons = response
             If (InStr(response, "HumanIntervention")) Then
@@ -410,53 +556,76 @@ Function WiseIsSafe()
 		WiseIsSafe = True
 	End If
 	
-	lastQueryTime = Now
+	lastIsSafeQueryTime = Now
+
+    ParkIfUnderAltLimit
 End Function
 
-Function HTTPRequest(verb, url, data)
-	Dim server, response
-    
-	set server = CreateObject("MSXML2.ServerXMLHTTP")
-	server.setTimeouts 1000, 1000, 2000, 2000
-    'Util.Console.PrintLine("Verb: " & verb & " url: " & url & " data: " & data)
+'--------------------------------------------------------------------
+' ACP calls IsSafe every 10 seconds,
+'   IsSafe calls WiseIsSafe,
+'       WiseIsSafe:
+'           Checks safety and returns the same value for one minute
+'           Once a minute it calls ParkIfUnderAltLimit
+'
+' If the telescope's altitude is less than the telescopeAltLimit
+'  it is sent (asynchronously) to the pre-defined parking coordinates
+'--------------------------------------------------------------------
+Sub ParkIfUnderAltLimit()
+    Dim response
 
-	On Error Resume Next
-	server.open verb, url, false
+    if hostname <> "c28-pc" then _
+        exit sub
 
-    If 0 = Err.Number Then
-	   server.setRequestHeader "Content-Type", "application/json"
-       Select Case verb
-        Case "GET"
-            server.Send
-        Case "PUT"
-            server.setRequestHeader "Content-Length", Len(data)
-            server.Send(data)
-       End Select
+    if not dli.has_power("Telescope") then
+        wutil.trace "ParkIfUnderAltLimit: The telescope is powered OFF"
+        exit sub
+    end if
 
-       On Error Resume Next
-	   If (Err.Number = 0 and server.readyState = 4) Then
-			HTTPRequest = Value(server.responseText)
-            'Util.Console.PrintLine("HTTP " & verb & ": response: " & HTTPRequest)
-			serverAnswers = True
-	   Else
-			HTTPRequest = "failed"
-			serverAnswers = False
-	   End If
-
+    If Not Util.TelescopeConnected Then
+        Util.TelescopeConnected = True
+        Util.WaitForMilliseconds(1000)
+        If Not Util.TelescopeConnected Then
+            wutil.trace "ParkIfUnderAltLimit: Cannot set Util.TelescopeConnected to True"
+            Exit Sub
+        End If
+        telescopeWasConnected = True
     End If
 
-	set server = Nothing
-	
-End Function
+    If parking Then
+        If Not Util.ScriptTelescope.Slewing Then
+            ' We were parking and the telescope stopped Slewing => The slew ended
+            wutil.trace "ParkIfUnderAltLimit: Telescope is parked at (" & Util.ScriptTelescope.HourAngle & ", " & Util.ScriptTelescope.Declination & ")"
+            parking = False
+        End If
 
-Function Value(json)
-    With CreateObject("ScriptControl")
-        .Language = "JScript"
-        With .Eval("(" + json + ")")
-            Value = .Value
-        End With
-    End With
-End Function
+        if telescopeWasConnected Then Util.TelescopeConnected = False
+        Exit Sub     'guard against being called while the telescope is still parking
+    End If
+
+    If Util.ScriptTelescope.Altitude >= telescopeAltLimit Then
+        wutil.trace "ParkIfUnderAltLimit: Telescope is at altitude " & Util.ScriptTelescope.Altitude & " (above " & telescopeAltLimit & ")"
+        If telescopeWasConnected Then Util.TelescopeConnected = False
+        Exit Sub     ' Telescope is above AltLimit
+    End If
+
+    ' We're commited to start parking the telescope
+    Dim millis
+    millis = 1000
+    wutil.trace "ParkIfUnderAltLimit: Sending telescope to parking position (" & telescopeParkHA & ", " & telescopeParkDec & ")"
+    If Not Util.TelescopeConnected Then
+        Util.TelescopeConnected = True
+        telescopeWasConnected = True
+    End If
+
+    ' A synchronous slew would be risky, ACP calls us every minute and the parking may take longer
+    Util.ScriptTelescope.SlewToCoordinatesAsync Util.NowLST() - telescopeParkHA, telescopeParkDec 
+    While Not Util.ScriptTelescope.Slewing
+        wutil.trace "ParkIfUnderAltLimit: Waiting " & millis & " millis for the telescope to start slewing ..."
+        Sleep millis
+    Wend
+End sub
+
 ]]>
 		</script>
 	</component>
