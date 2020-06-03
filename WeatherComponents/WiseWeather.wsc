@@ -217,21 +217,21 @@ Sub SetupDialog()
 	Util.Profile.WriteValue "WiseWeather", localStationIsReliable, "LocalStationIsReliable"
 
     response = InputBox("Telescope altitude limit", "Alt limit (degrees):", telescopeAltLimit)
-    If response <> "" Then
+    If not isempty(response) Then
         telescopeAltLimit = response
     End If
-	Util.Profile.WriteValue "WiseWeather", telescopeAltLimit, "AltLimit"
+	  Util.Profile.WriteValue "WiseWeather", telescopeAltLimit, "AltLimit"
 
     response = InputBox("Telescope parking HourAngle", "HourAngle (hours):", telescopeParkHA)
-    If response <> "" Then
+    If not isempty(response) Then
         telescopeParkHA = response
     End If
 
     response = InputBox("Telescope parking Declination", "Declination (degrees):", telescopeParkDec)
-    If response <> "" Then
+    If not isempty(response) Then
         telescopeParkDec = response
     End If
-	Util.Profile.WriteValue "WiseWeather", telescopeParkDec, "ParkDec"
+	  Util.Profile.WriteValue "WiseWeather", telescopeParkDec, "ParkDec"
 
 End Sub
 
