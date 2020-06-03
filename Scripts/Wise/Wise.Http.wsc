@@ -1,0 +1,200 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Wise HTTP Utilities
+    ==================================================
+
+    Script:         Wise.Http.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise HTTP utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        03-Jun-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="false" ?>
+		<registration
+            progid="Wise.Http" 
+            classid="{40c58c93-6706-41b9-bdf4-f123cdd64cf9}" 
+            description="Wise http methods" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="request">
+                <parameter name="verb"/>
+                <parameter name="url"/>
+                <parameter name="user"/>
+                <parameter name="password"/>
+			</method>
+			<method name="get_url">
+                <parameter name="url"/>
+                <parameter name="user"/>
+                <parameter name="password"/>
+			</method>
+			<method name="put_url">
+                <parameter name="url"/>
+                <parameter name="data"/>
+                <parameter name="user"/>
+                <parameter name="password"/>
+			</method>
+			<method name="GetJSONValue">
+                <parameter name="json"/>
+			</method>
+			<method name="Base64Encode">
+                <parameter name="text"/>
+			</method>
+		</public>
+
+		<script language="VBScript">
+
+    <![CDATA[
+
+    dim wutil : set wutil = createobject("Wise.Util")
+
+    function get_url(url, user, password)
+        get_url = request("GET", url, Null, user, password)
+    end function
+
+    function put_url(url, data, user, password)
+        put_url = request("PUT", url, data, user, password)
+    end function
+
+    function request(verb, url, data, user, password)
+        Dim server, response
+        const maxSeconds = 5
+        
+        set server = createobject("MSXML2.ServerXMLHTTP")
+        server.setTimeouts 1000, 1000, 2000, 2000
+
+        server.open verb, url, false, user, password
+
+        if 0 = Err.Number Then
+           server.setRequestHeader "Content-Type", "text/html"
+
+           Select Case verb
+            Case "GET"
+                server.Send
+            Case "PUT"
+                server.setRequestHeader "Content-Length", Len(data)
+                server.Send(data)
+           end Select
+
+           Dim msg
+           msg = "Request: " & verb
+           if not IsEmpty(data) then
+               msg = msg & Replace(Replace(data, "Action=", " "), "&Parameters=", " ")
+           end if
+           msg = msg & " => "
+
+           Dim startTime
+           startTime = Timer
+           do while Err.Number = 0 and server.readyState <> 4
+                wutil.trace "Sleeping 100 millis ..."
+                Util.WaitForMilliseconds(100)
+                if Round(Timer - startTime) >= maxSeconds Then
+                    set server = Nothing
+                    request = "error:timedout after " & maxSeconds & " seconds"
+                    wutil.trace msg & request
+                    Exit function
+                end if
+           loop
+
+           if (Err.Number <> 0) Then
+                set server = Nothing
+                request = "error:#" & Err.Number & ", description: " & Err.Description & ", source: " & err.source
+                wutil.trace msg & request
+                Exit function
+           end if
+
+           if server.readyState = 4 then
+                if InStr(server.responseText, "ClientTransactionID") Then
+                    request = GetJSONValue(server.responseText)
+                else
+                    request = server.responseText
+                end if
+                wutil.trace msg & request
+           else
+                httprequest = "error:server.ReadyState " & server.ReadyState
+                wutil.trace msg & request
+           end if
+
+        end if
+
+        set server = Nothing
+        
+    end function
+
+    function GetJSONValue(json)
+        with createobject("ScriptControl")
+            .Language = "JScript"
+            with .Eval("(" + json + ")")
+                GetJSONValue = .Value
+            end with
+        end with
+    end function
+
+    function Base64Encode(sText)
+        Dim oXML, oNode
+
+        set oXML = createobject("Msxml2.DOMDocument.3.0")
+        set oNode = oXML.CreateElement("base64")
+        oNode.dataType = "bin.base64"
+        oNode.nodeTypedValue = Stream_StringToBinary(sText)
+        Base64Encode = oNode.text
+        set oNode = Nothing
+        set oXML = Nothing
+    end function
+
+    'Stream_StringToBinary function
+    '2003 Antonin Foller, http://www.motobit.com
+    'Text - string parameter To convert To binary data
+    function Stream_StringToBinary(Text)
+      const adTypeText = 2
+      const adTypeBinary = 1
+
+      'Create Stream object
+      Dim BinaryStream 'As New Stream
+      set BinaryStream = createobject("ADODB.Stream")
+
+      'Specify stream type - we want To save text/string data.
+      BinaryStream.Type = adTypeText
+
+      'Specify charset For the source text (unicode) data.
+      BinaryStream.Charset = "us-ascii"
+
+      'Open the stream And write text/string data To the object
+      BinaryStream.Open
+      BinaryStream.WriteText Text
+
+      'Change stream type To binary
+      BinaryStream.Position = 0
+      BinaryStream.Type = adTypeBinary
+
+      'Ignore first two bytes - sign of
+      BinaryStream.Position = 0
+
+      'Open the stream And get binary data from the object
+      Stream_StringToBinary = BinaryStream.Read
+
+      set BinaryStream = Nothing
+    end function
+    ]]>
+		</script>
+	</component>
+</package>

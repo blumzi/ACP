@@ -1,0 +1,97 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Wise ASCOM Utilities
+    ==================================================
+
+    Script:         Wise.Ascom.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise ASCOM utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        03-Jun-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="false" ?>
+		<registration
+            progid="Wise.Ascom" 
+            classid="{3c132db0-a1c5-4278-a2af-04880d52f522}" 
+            description="Wise ASCOM methods" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="get_url">
+                <parameter name="url"/>
+			</method>
+			<method name="put_url">
+                <parameter name="url"/>
+                <parameter name="data"/>
+			</method>
+            <property name="Server">
+                <get/>
+                <put/>
+            </property>
+            <property name="Port">
+                <get/>
+                <put/>
+            </property>
+		</public>
+
+		<script language="VBScript">
+
+    <![CDATA[
+
+    dim server_url, server_port, server_addr
+    dim acp : set acp = createobject("ACP.Util")
+    dim whttp : set whttp = createobject("Wise.Http")
+
+    server_addr = get_Server
+    server_port = get_Port
+    server_url = "http://" & server_addr & ":" & server_port & "/api/v1/"
+
+    function get_url(url)
+        get_url = whttp.request("GET", server_url & url, Null, Null, Null)
+    end function
+
+    function put_url(url, data)
+        put_url = whttp.request("PUT", server_url & url, data, Null, Null)
+    end function
+
+    function get_Server
+        get_Server = acp.Profile.GetValue("WiseAscom", "Server", "132.66.65.9")
+    end function
+
+    sub put_Server(value)
+        server_addr = value
+        acp.Profile.WriteValue "WiseAscom", "Server", server_addr
+    end sub
+
+    function get_Port
+        get_Port = acp.Profile.GetValue("WiseAscom", "Server", "11111")
+    end function
+
+    sub put_Port(value)
+        server_port = value
+        acp.Profile.WriteValue "WiseAscom", "Port", server_port
+    end sub
+
+    ]]>
+		</script>
+	</component>
+</package>

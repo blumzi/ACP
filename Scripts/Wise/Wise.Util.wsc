@@ -1,0 +1,216 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Some Wise Utility methods
+    ==================================================
+
+    Script:         Wise.Util.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        09-May-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="false" ?>
+		<registration
+            progid="Wise.Util" 
+            classid="{d778ffb5-8909-49d4-9782-890ee191799c}" 
+            description="Wise utility methods" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="info">
+                <parameter name="Message"/>
+			</method>
+			<method name="debug">
+                <parameter name="Message"/>
+			</method>
+			<method name="warning">
+                <parameter name="Message"/>
+			</method>
+			<method name="fatal">
+                <parameter name="Message"/>
+			</method>
+			<method name="trace">
+                <parameter name="Message"/>
+			</method>
+			<method name="get_hostname">
+			</method>
+			<method name="sleep">
+                <parameter name="Seconds"/>
+			</method>
+			<method name="connect_and_wait">
+                <parameter name="Device"/>
+                <parameter name="TimeoutSeconds"/>
+			</method>
+			<method name="set_prog_name">
+                <parameter name="ProgramName"/>
+			</method>
+		</public>
+
+		<script language="VBScript">
+
+    <![CDATA[
+
+    dim prog_name
+    dim fso    : set fso = createobject("Scripting.FileSystemObject")
+    dim stdout : set stdout = fso.GetStandardStream(1)
+
+    dim util   : set util = createobject("ACP.Util")
+
+    dim trace_file, trace_stream, trace_prevdate
+    set trace_stream = nothing
+
+
+    '
+    ' Outputs a message
+    '
+    sub say(msg)
+        if isempty(msg) then
+            exit sub
+        end if
+
+        if not isempty(prog_name) then
+            msg = prog_name & ": " & msg
+        end if
+
+        if isobject(Util) then
+            Util.Console.PrintLine msg
+        else
+            stdout.writeline msg
+        end if
+    end sub
+
+    '
+    ' Outputs a message and terminates the current script
+    '
+    sub fatal(msg)
+        say "FATAL ERROR: " & msg
+        err.clear
+        'err.raise vbObjectError + 1, prog_name, "FATAL ERROR: " & msg
+        util.AbortScript
+    end sub
+
+    '
+    ' Outputs a warning message
+    '
+    sub warning(msg)
+        say "WARNING: " & msg
+    end sub
+
+    '
+    ' Outputs an information message
+    '
+    sub info(msg)
+        say msg
+    end sub
+
+    '
+    ' Outputs a debug message
+    '
+    sub debug(msg)
+        say "DEBUG: " & msg
+    end sub
+
+    '
+    ' Write a trace line to this script's trace file
+    '
+    sub trace(message)
+        dim       utc : utc = Util.SysUTCDate
+        dim this_date : this_date = Util.FormatVar(utc, "yyyymmdd")
+
+        if isempty(trace_prevdate) then
+            trace_prevdate = this_date
+        elseif not trace_prevdate = this_date then
+            if not trace_stream is nothing then
+                trace_stream = nothing
+            end if
+            trace_prevdate = this_date
+        end if
+
+        dim folder, timestamp
+
+        folder = Util.Prefs.LocalUser.DefaultLogDir & "\" &  this_date
+        if not fso.FolderExists(folder) then
+            fso.CreateFolder(folder)
+            set trace_stream = nothing
+        end if
+
+        timeStamp = Util.FormatVar(utc, "Hh:Nn:Ss") & " UT - "
+        trace_file = folder & "\" & prog_name & ".log"
+        if trace_stream is nothing then
+            set trace_stream = fso.OpenTextFile(trace_file, 8, True) ' 8 = ForAppending
+            'trace_stream.WriteLine timeStamp
+        end if   
+        trace_stream.WriteLine timeStamp & message
+    End Sub
+
+    '
+    ' Attempts to connect to a device within @max_seconds
+    '
+    sub connect_and_wait(device, max_seconds)
+        dim start_time
+
+        if not isobject(device) then
+            fatal "connect_and_wait: first argument must be an object"
+        end if
+        
+        if device.connected then
+            exit sub
+        end if
+
+        device.connected = true
+        start_time = timer()
+        do while not device.connected and (timer() - start_time) <= max_seconds
+            sleep 1
+        loop
+
+        if not device.connected then
+            fatal "connect_and_wait: Device " & device.name & " did not connect after " & max_seconds & " seconds"
+        else
+            info "connect_and_wait: Device " & device.name & " connected after " & timer() - start_time & " seconds"
+        end if
+    end sub
+
+    '
+    ' Take a nap
+    '
+    sub sleep(seconds)
+        Util.WaitForMilliseconds(seconds * 1000)
+    end sub
+
+    '
+    ' Get the curent machine's name
+    '
+    function get_hostname()
+        dim shell : set shell = createobject("WScript.Shell")
+
+        get_hostname = lcase(shell.ExpandEnvironmentStrings("%COMPUTERNAME%"))
+        set shell = nothing
+    end function
+
+    sub set_prog_name(name)
+        prog_name = name
+    end sub
+
+    ]]>
+		</script>
+	</component>
+</package>

@@ -1,0 +1,128 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    A wrapper to simplify the access to an ASCOM.DigitalLoggers.Switch object
+    ==================================================
+
+    Script:         Wise.DliPowerSwitch.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This script provides a dli_power_switch class which simplifies the
+                    access to an  ASCOM.DigitalLoggers.Switch object
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        08-May-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="false" ?>
+		<registration
+            progid="Wise.DliPowerSwitch" 
+            classid="{66B891D0-2081-4D95-911B-BB0470487330}" 
+            description="A wrapper around the ASCOM.DigitalLoggers.Switch" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="power_on">
+                <parameter name="PortName"/>
+			</method>
+			<method name="power_off">
+                <parameter name="PortName"/>
+			</method>
+			<method name="has_power">
+                <parameter name="PortName"/>
+			</method>
+		</public>
+
+		<script language="VBScript">
+
+    <![CDATA[
+
+    dim port_names(), sw
+    dim wu : set wu = createobject("Wise.Util")
+    wu.set_prog_name("Wise.DliPowerSwitch")
+
+    init
+
+    sub init()
+        'on error resume next
+        set sw = createobject("ASCOM.DigitalLoggers.Switch")
+        if not isobject(sw) then
+            fatal "Wise.DliPowerSwitch.init: cannot createobject(ASCOM.DigitalLoggers.Switch)"
+        end if
+
+        sw.Connected = true
+        redim port_names(sw.MaxSwitch)
+        'wu.debug ubound(port_names) & " port_names"
+        for i = 0 to ubound(port_names) - 1
+            port_names(i) = sw.GetSwitchName(i)
+            'wu.debug "port_names(" & i & "): " & port_names(i)
+        next
+    end sub
+
+    sub power_on(port_name)
+        dim start_time, id
+        const timeout = 20
+
+        id = port_id(port_name)
+        sw.setswitch id, true
+        start_time = timer()
+        do while not sw.getswitch(id) and (timer() - start_time) <= timeout
+            sleep 1
+        loop
+
+        if sw.getswitch(id) then
+            wu.info "Powered " & port_name & " ON in " & timer() - start_time & " seconds"
+        else
+            wu.fatal "Could not power " & port_name & " ON within " & timeout & " seconds"
+        end if
+    end sub
+
+    sub power_off(port_name)
+        dim start_time, id
+        const timeout = 20
+
+        id = port_id(port_name)
+        sw.setswitch id, false
+        start_time = timer()
+        do while sw.getswitch(id) and (timer() - start_time) <= timeout
+            sleep 1
+        loop
+
+        if sw.getswitch(id) then
+            fatal "Could not power " & port_name & " OFF within " & timeout & " seconds"
+        end if
+    end sub
+
+    function has_power(port_name)
+        has_power = sw.getswitch(port_id(port_name))
+    end function
+
+    function port_id(port_name)
+        for i = 0 to ubound(port_names) - 1
+            if lcase(port_names(i)) = lcase(port_name) then
+                port_id = i
+                exit function
+            end if
+        next
+    end function
+
+
+    ]]>
+		</script>
+	</component>
+</package>
