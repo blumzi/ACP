@@ -27,7 +27,7 @@
     ]]>
 	</comment>
 	<component>
-		<?component error="true" debug="false" ?>
+		<?component error="false" debug="false" ?>
 		<registration
             progid="Wise.Http" 
             classid="{40c58c93-6706-41b9-bdf4-f123cdd64cf9}" 
@@ -98,7 +98,7 @@
            Dim msg
            msg = "Request: " & verb
            if not IsEmpty(data) then
-               msg = msg & Replace(Replace(data, "Action=", " "), "&Parameters=", " ")
+               msg = msg & " " & data
            end if
            msg = msg & " => "
 

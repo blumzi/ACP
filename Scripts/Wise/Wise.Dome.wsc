@@ -1,0 +1,254 @@
+<?xml version="1.0" ?>
+<!-- vim:se expandtab sts=4 ts=4 sw=4 -->
+<package>
+    <comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Some Wise dome methods
+    ==================================================
+
+    Script:         Wise.Dome.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        09-May-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+    </comment>
+    <component>
+        <?component error="true" debug="false" ?>
+        <registration
+            progid="Wise.Dome" 
+            classid="{b5b700d0-4e53-4102-93f5-6e5baaae2218}" 
+            description="Wise dome methods" 
+            remotable="no" 
+            version="1.0">
+        </registration>
+        <public>
+            <method name="startup"/>
+            <method name="shutdown"/>
+        </public>
+
+        <script language="VBScript">
+
+    <![CDATA[
+
+    dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim acp_util    : set acp_util = createobject("ACP.Util")
+    dim dli         : set dli = createobject("Wise.DliPowerSwitch")
+    dim obs         : obs = wise_util.observatory
+    dim label       : label = wise_util.mklabel("Dome")
+    dim parking_az, dome_driver, parking_tolerance
+
+    select case obs
+        case "c28"
+            set dome_driver = createobject("ASCOM.ScopeDomeUSBDome.DomeLS")
+            parking_az = 232
+            parking_tolerance = 3
+        case "c18"
+            set dome_driver = createobject("ASCOM.DigitalDomeWorks.Dome")
+            parking_az = 100
+            parking_tolerance = 3
+        case "wise40"
+            sed dome_driver = createobject("ASCOM.Wise40.Dome")
+            parking_az = 90
+            parking_tolerance = 3
+    end select
+
+    const shutterOpen = 0
+    const shutterClosed = 1
+    const shutterOpening = 2
+    const shutterClosing = 3
+    const shutterError = 4
+
+    sub startup
+
+        select case obs
+            case "c28"
+                if dli.has_power("dome") then
+                    dli.power_off("dome")
+                    wise_util.sleep 2
+                end if
+                dli.power_on("dome")
+                wise_util.sleep 2
+
+                if not acp_util.dome.available then
+                    acp_util.telescopeconnected = true     ' This will also connect the dome driver, which is slaved
+                    wise_util.sleep 2
+                end if
+
+                if not dome_driver.connected then
+                    dome_driver.connected = true
+                end if
+
+                if dome_driver.commandbool("Shutter_Link_Strength") then
+                    wise_util.info label & "shutter link is OK"
+                else
+                    wise_util.fatal label & "bad shutter link"
+                end if
+        end select
+
+        if atpark then
+            unpark
+        end if
+
+        dim az : az = int(acp_util.dome.azimuth)
+        if abs(az - parking_az) > parking_tolerance then
+            wise_util.warning label & "azimuth (" & az & ") too far from parking az (" & parking_az & ") (tolerance: " & parking_tolerance & " deg)"
+        else
+            wise_util.info label & "azimuth: " & az & " deg. (within " & parking_tolerance & " deg from parking az " & parking_az & ")"
+        end if
+    end sub
+
+    sub shutdown
+        park    ' must park before activating the shutter
+        'close_shutter
+
+        if obs = "c18" or obs = "c28" then
+            if dli.has_power("dome") then
+                dli.power_off("dome")
+            end if
+        end if
+
+    end sub
+
+    sub open_shutter
+        const interval = 10
+        dim status
+
+        if acp_util.dome.shutterstatus = shutterOpen then
+            wise_util.info "shutter is open"
+            exit sub
+        end if
+
+        acp_util.dome.openshutter
+        dim start_opening : start_opening = timer
+        wise_util.info label & "started opening the shutter"
+
+        while true
+            wise_util.info label & " waiting " & interval & " seconds ..."
+            wise_util.sleep interval
+
+            status = acp_util.dome.shutterstatus
+            select case status
+                case "shutterOpen"
+                case shutterOpen
+                    wise_util.info label & "shutter is open"
+                    exit sub
+
+                case "shutterOpening"
+                case shutterOpening
+                    :
+
+                case else
+                    wise_fatal "invalid status: " & status
+
+            end select
+
+            if (timer - start_opening) > max_seconds then
+                wise_fatal "shutter did not open in " & (timer - start_opening) & " seconds"
+            end if
+        wend
+
+    end sub
+
+    sub close_shutter
+        const max_seconds = 60
+        const interval = 10
+        dim status
+
+        if acp_util.dome.shutterstatus = shutterClosed then
+            wise_util.info label & "shutter is closed"
+            exit sub
+        end if
+
+        acp_util.dome.closeshutter
+        dim start_closing : start_closing = timer
+        wise_util.info label & "started closing the shutter"
+
+        while true
+            wise_util.info label & " waiting " & interval & " seconds ..."
+            wise_util.sleep interval
+
+            status = acp_util.dome.shutterstatus
+            select case status
+                case "shutterClosed"
+                case shutterClosed
+                    wise_util.info label & "shutter is closed"
+                    exit sub
+
+                case "shutterclosing"
+                case shutterclosing
+                    :
+
+                case else
+                    wise_fatal "invalid status: " & status
+
+            end select
+
+            if (timer - start_closing) > max_seconds then
+                wise_fatal "shutter did not close in " & (timer - start_closing) & " seconds"
+            end if
+        wend
+
+    end sub
+
+    function atpark
+        if acp_util.dome.canpark and acp_util.dome.atpark then
+            atpark = true
+        elseif acp_util.dome.canfindhome then
+            atpark = acp_util.dome.athome
+        else
+            dim az : az = acp_util.dome.azimuth
+
+            atpark = az >= (parking_az - 3) and az <= (parking_az + 3)
+        end if
+    end function
+
+    sub park
+        if acp_util.dome.slewing then
+            acp_util.dome.abortslew
+            wise_util.sleep 5
+        end if
+
+        if not atpark then
+            if acp_util.dome.canpark then
+                acp_util.dome.park
+            elseif acp_util.dome.canfindhome then
+                acp_util.dome.findhome
+            else
+                acp_util.dome.slewtoaz parking_az
+            end if
+
+            wise_util.sleep 5   ' let it start slewing
+            while acp_util.dome.slewing
+                wise_util.info label & "dome is at " & int(acp_util.dome.azimuth) & " degrees ..."
+                wise_util.sleep 2
+            wend
+        end if
+        wise_util.info  label & "dome is parked at " & int(acp_util.dome.azimuth) & " degrees"
+    end sub
+
+    sub unpark
+        if acp_util.dome.canpark and acp_util.dome.atpark then
+            acp_util.dome.unpark
+            wise_util.info label & "Unparked"
+        end if
+    end sub
+
+    ]]>
+        </script>
+    </component>
+</package>

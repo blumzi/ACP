@@ -27,7 +27,7 @@
     ]]>
 	</comment>
 	<component>
-		<?component error="true" debug="false" ?>
+		<?component error="false" debug="false" ?>
 		<registration
             progid="Wise.Ascom" 
             classid="{3c132db0-a1c5-4278-a2af-04880d52f522}" 
@@ -45,11 +45,11 @@
 			</method>
             <property name="Server">
                 <get/>
-                <put/>
+                <set/>
             </property>
             <property name="Port">
                 <get/>
-                <put/>
+                <set/>
             </property>
 		</public>
 
@@ -77,7 +77,7 @@
         get_Server = acp.Profile.GetValue("WiseAscom", "Server", "132.66.65.9")
     end function
 
-    sub put_Server(value)
+    sub set_Server(value)
         server_addr = value
         acp.Profile.WriteValue "WiseAscom", "Server", server_addr
     end sub
@@ -86,7 +86,7 @@
         get_Port = acp.Profile.GetValue("WiseAscom", "Server", "11111")
     end function
 
-    sub put_Port(value)
+    sub set_Port(value)
         server_port = value
         acp.Profile.WriteValue "WiseAscom", "Port", server_port
     end sub

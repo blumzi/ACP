@@ -53,8 +53,8 @@
     <![CDATA[
 
     dim port_names(), sw
-    dim wu : set wu = createobject("Wise.Util")
-    wu.set_prog_name("Wise.DliPowerSwitch")
+    dim wu   : set wu = createobject("Wise.Util")
+    dim label: label = wu.mklabel("Power")
 
     init
 
@@ -78,6 +78,8 @@
         dim start_time, id
         const timeout = 20
 
+        port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
+
         id = port_id(port_name)
         sw.setswitch id, true
         start_time = timer()
@@ -86,15 +88,22 @@
         loop
 
         if sw.getswitch(id) then
-            wu.info "Powered " & port_name & " ON in " & timer() - start_time & " seconds"
+            dim elapsed : elapsed = int(timer() - start_time)
+            dim msg     : msg = label & "powered '" & port_name & "' ON"
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"
+            end if
+            wu.info msg
         else
-            wu.fatal "Could not power " & port_name & " ON within " & timeout & " seconds"
+            wu.fatal label & "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
         end if
     end sub
 
     sub power_off(port_name)
         dim start_time, id
         const timeout = 20
+
+        port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
 
         id = port_id(port_name)
         sw.setswitch id, false
@@ -104,7 +113,15 @@
         loop
 
         if sw.getswitch(id) then
-            fatal "Could not power " & port_name & " OFF within " & timeout & " seconds"
+            wu.fatal label & "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
+        else
+            dim elapsed : elapsed = int(timer - start_time)
+            dim msg     : msg = label & "powered '" & port_name & "' OFF"
+            if elapse > 0 then
+                msg = msg & " in " & elapsed & " seconds"
+                
+            end if
+            wu.info msg
         end if
     end sub
 

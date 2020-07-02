@@ -1,0 +1,208 @@
+<?xml version="1.0" ?>
+<!-- vim:se expandtab ts=4 sw=4 -->
+<package>
+    <comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Some Wise Utility methods
+    ==================================================
+
+    Script:         Wise.Util.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        09-May-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+    </comment>
+    <component>
+        <?component error="false" debug="false" ?>
+        <registration
+            progid="Wise.Camera" 
+            classid="{2fd48cf5-b72f-416b-af45-f9b184c03ad5}" 
+            description="Wise camera methods" 
+            remotable="no" 
+            version="1.0">
+        </registration>
+        <public>
+            <method name="startup"/>
+            <method name="shutdown"/>
+            <method name="cool_down"/>
+            <method name="warm_up"/>
+            <property name="name">
+                <get/>
+            </property>
+        </public>
+
+        <script language="VBScript">
+
+    <![CDATA[
+
+    dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim acp_util    : set acp_util = createobject("ACP.Util")
+    dim camera      : set camera = createobject("MaxIm.CCDCamera")
+    dim dli         : set dli = createobject("Wise.DliPowerSwitch")
+    dim observatory : observatory = wise_util.observatory
+
+    dim initialized : initialized = false
+    dim label       : label = wise_util.mklabel("Camera")
+
+    sub cool_down
+        init_camera
+
+        if camera.cooleron then
+            wise_util.info label & "cooler is on"
+        else
+            wise_util.info label & "turned cooler on"
+            camera.cooleron = true
+        end if
+
+        if camera.temperature <= camera.temperaturesetpoint then
+            wise_util.info label & "temperature (" & camera.temperature & ") is low enough (setpoint: " & camera.temperaturesetpoint & ")."
+            exit sub
+        end if
+
+        const delta_temp = 3
+        if abs(camera.temperature - camera.temperaturesetpoint) <= delta_temp then
+            wise_util.info label & "temperature (" & int(camera.temperature) & ") is within " & delta_temp & _
+                " degrees of the setpoint (" & camera.temperaturesetpoint & ")"
+        else
+            dim i, start_time, start_temp, current_delta_temp
+            const max_time = 60
+            start_temp = int(camera.temperature)
+            start_time = timer
+
+            wise_util.info label & "temperature: " & start_temp & " degrees, Waiting for the camera to cool by " & delta_temp & " degrees."
+            do 
+                wise_util.info label & "temperature: " & int(camera.temperature) & " degrees"
+                wise_util.sleep 5
+                current_delta_temp = int(abs(camera.temperature - start_temp))
+            loop while (timer - start_time) < max_time and current_delta_temp < delta_temp
+            if current_delta_temp < delta_temp then
+                wise_util.fatal label & "camera did not cool by " & delta_temp & " degrees within " & max_time & " seconds."
+            else
+                wise_util.info label & "camera cooled down by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
+            end if
+        end if
+    end sub
+
+    sub warm_up
+        init_camera
+
+        if camera.cooleron then
+            camera.cooleron = false
+            wise_util.info label & "turned cooler off"
+        else
+            wise_util.info label & "cooler is off"
+        end if
+
+        if camera.coolerpower = 0 then
+            wise_util.info label & "cooler power is 0%"
+            exit sub
+        end if
+
+        if camera.coolerpower > 0 then
+            wise_util.info label & "cooler power is " & camera.coolerpower & "%, waiting to reach 0%"
+            do
+                wise_util.sleep 15
+                wise_util.info label & "cooler power " & camera.coolerpower & "%, temperature " & int(camera.temperature) & " degrees ..."
+            loop while camera.coolerpower <> 0
+        end if
+        wise_util.info label & "cooler power reached 0%, temperature " & int(camera.temperature) & " degrees"
+    end sub
+
+    function get_name
+        get_name = camera.cameraname
+    end function
+
+    sub init_camera
+        if initialized then
+            exit sub
+        end if
+
+        if observatory = "c18" or observatory = "c28" then
+            if dli.has_power("ccd") then
+                wise_util.info label & "power is on"
+            else
+                dli.power_on("ccd")
+                wise_util.sleep 2
+            end if
+        end if
+
+        if camera.linkenabled then
+            wise_util.info label & "MaxIM DL link was already enabled"
+        else
+            camera.linkenabled = true
+            wise_util.sleep 2
+            if camera.linkenabled then
+                wise_util.info label & "enabled MaxIM DL link"
+            else
+                wise_fatal label & "could not enable MaxIM DL link"
+            end if
+        end if
+
+        initialized = true
+    end sub
+
+    sub startup
+        init_camera
+
+        if observatory = "c18" or observatory = "c28" then
+            if not dli.has_power("ccd") then
+                dli.power_on("ccd")
+                wise_util.sleep 5
+            end if
+        end if
+
+        if not acp_util.cameraconnected then
+            acp_util.cameraconnected = true
+            wise_util.info label & "activated MaxIm DL"
+        end if
+
+        if not camera.linkenabled then
+            camera.linkenabled = true
+            wise_util.info label & "enabled MaxIm DL link"
+        end if
+
+        cool_down
+    end sub
+
+    sub shutdown
+        init_camera
+
+        warm_up
+
+        if camera.linkenabled then
+            camera.linkenabled = false
+            wise_util.info label & "disabled MaxIm DL link"
+        end if
+
+        if acp_util.cameraconnected then
+            acp_util.cameraconnected = false
+            wise_util.info label & "deactivated MaxIm DL"
+        end if
+
+        if observatory = "c18" or observatory = "c28" then
+            if dli.has_power("ccd") then
+                dli.power_off("ccd")
+            end if
+        end if
+
+    end sub
+
+    ]]>
+        </script>
+    </component>
+</package>

@@ -80,8 +80,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include=".gitignore" />
+    <Content Include="Scripts\ShutdownObs-Arie.vbs" />
+    <Content Include="Scripts\StartupObs-Arie.vbs" />
     <Content Include="Scripts\Wise\Wise.Ascom.wsc" />
+    <Content Include="Scripts\Wise\Wise.Camera.wsc" />
     <Content Include="Scripts\Wise\Wise.DliPowerSwitch.wsc" />
+    <Content Include="Scripts\Wise\Wise.Dome.wsc" />
     <Content Include="Scripts\Wise\Wise.Http.wsc" />
     <Content Include="Scripts\Wise\Wise.Util.wsc" />
     <Content Include="WeatherComponents\WiseWeather.wsc" />
@@ -114,6 +118,7 @@
     <None Include=".git\packed-refs" />
     <None Include=".git\refs\heads\master" />
     <None Include=".git\refs\remotes\origin\HEAD" />
+    <None Include="Scripts\Wise\register.bat" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include=".git\objects\info\" />

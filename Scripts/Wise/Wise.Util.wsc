@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
+<!-- vim:se expandtab ts=4 sw=4 -->
 <package>
-	<comment>
+    <comment>
     <![CDATA[
     'tabs=4
     -----------------------------------------------------------------------------------------
@@ -25,59 +26,78 @@
         09-May-2020   Initial Edit
     -----------------------------------------------------------------------------------------
     ]]>
-	</comment>
-	<component>
-		<?component error="true" debug="false" ?>
-		<registration
+    </comment>
+    <component>
+        <?component error="false" debug="false" ?>
+        <registration
             progid="Wise.Util" 
             classid="{d778ffb5-8909-49d4-9782-890ee191799c}" 
             description="Wise utility methods" 
             remotable="no" 
             version="1.0">
-		</registration>
-		<public>
-			<method name="info">
+        </registration>
+        <public>
+            <method name="info">
                 <parameter name="Message"/>
-			</method>
-			<method name="debug">
+            </method>
+            <method name="debug">
                 <parameter name="Message"/>
-			</method>
-			<method name="warning">
+            </method>
+            <method name="warning">
                 <parameter name="Message"/>
-			</method>
-			<method name="fatal">
+            </method>
+            <method name="fatal">
                 <parameter name="Message"/>
-			</method>
-			<method name="trace">
+            </method>
+            <method name="trace">
                 <parameter name="Message"/>
-			</method>
-			<method name="get_hostname">
-			</method>
-			<method name="sleep">
+            </method>
+            <property name="hostname">
+                <get/>
+            </property>
+            <method name="sleep">
                 <parameter name="Seconds"/>
-			</method>
-			<method name="connect_and_wait">
+            </method>
+            <method name="connect_and_wait">
                 <parameter name="Device"/>
                 <parameter name="TimeoutSeconds"/>
-			</method>
-			<method name="set_prog_name">
-                <parameter name="ProgramName"/>
-			</method>
-		</public>
+            </method>
+            <property name="scriptname">
+                <get/>
+                <set/>
+            </property>
+            <property name="observatory">
+                <get/>
+            </property>
+            <property name="prog">
+                <get/>
+            </property>
+            <method name="sync_telescope_to_absolute_encoders"/>
+            <method name="mklabel">
+                <parameter name="label"/>
+            </method>
+            <method name="run">
+                <parameter name="message"/>
+                <parameter name="command"/>
+            </method>
+        </public>
 
-		<script language="VBScript">
+        <script language="VBScript">
 
     <![CDATA[
 
-    dim prog_name
-    dim fso    : set fso = createobject("Scripting.FileSystemObject")
-    dim stdout : set stdout = fso.GetStandardStream(1)
-
-    dim util   : set util = createobject("ACP.Util")
+    dim fso       : set fso = createobject("Scripting.FileSystemObject")
+    dim stdout    : set stdout = fso.GetStandardStream(1)
+    dim acp_util  : set acp_util = createobject("ACP.Util")
+    dim prog_file : set prog_file = fso.getfile(acp_util.console.script)
+    dim prog_name : prog_name = prog_file.name
 
     dim trace_file, trace_stream, trace_prevdate
     set trace_stream = nothing
 
+    trace "==="
+    trace "=== Script " & prog_file.path &  " started"
+    trace "==="
 
     '
     ' Outputs a message
@@ -87,32 +107,26 @@
             exit sub
         end if
 
-        if not isempty(prog_name) then
-            msg = prog_name & ": " & msg
+        if isobject(acp_util) then
+            acp_util.Console.PrintLine msg
         end if
-
-        if isobject(Util) then
-            Util.Console.PrintLine msg
-        else
-            stdout.writeline msg
-        end if
+        trace msg
     end sub
 
     '
     ' Outputs a message and terminates the current script
     '
     sub fatal(msg)
-        say "FATAL ERROR: " & msg
+        say "[FATAL] " & msg
         err.clear
-        'err.raise vbObjectError + 1, prog_name, "FATAL ERROR: " & msg
-        util.AbortScript
+        acp_util.AbortScript
     end sub
 
     '
     ' Outputs a warning message
     '
     sub warning(msg)
-        say "WARNING: " & msg
+        say "[WARNING] " & msg
     end sub
 
     '
@@ -133,8 +147,8 @@
     ' Write a trace line to this script's trace file
     '
     sub trace(message)
-        dim       utc : utc = Util.SysUTCDate
-        dim this_date : this_date = Util.FormatVar(utc, "yyyymmdd")
+        dim       utc : utc = acp_util.SysUTCDate
+        dim this_date : this_date = acp_util.FormatVar(utc, "yyyymmdd")
 
         if isempty(trace_prevdate) then
             trace_prevdate = this_date
@@ -147,19 +161,23 @@
 
         dim folder, timestamp
 
-        folder = Util.Prefs.LocalUser.DefaultLogDir & "\" &  this_date
+        folder = acp_util.Prefs.LocalUser.DefaultLogDir & "\" &  this_date
         if not fso.FolderExists(folder) then
             fso.CreateFolder(folder)
             set trace_stream = nothing
         end if
 
-        timeStamp = Util.FormatVar(utc, "Hh:Nn:Ss") & " UT - "
+        timeStamp = acp_util.FormatVar(utc, "Hh:Nn:Ss") & " UT - "
         trace_file = folder & "\" & prog_name & ".log"
-        if trace_stream is nothing then
-            set trace_stream = fso.OpenTextFile(trace_file, 8, True) ' 8 = ForAppending
-            'trace_stream.WriteLine timeStamp
-        end if   
+        on error resume next    ' if file is locked just give up
+        set trace_stream = fso.OpenTextFile(trace_file, 8, True) ' 8 = ForAppending
+        if err.number <> 0 then
+            info "trace: " & err.description
+            exit sub
+        end if
         trace_stream.WriteLine timeStamp & message
+        trace_stream.close
+        trace_stream = nothing
     End Sub
 
     '
@@ -167,9 +185,10 @@
     '
     sub connect_and_wait(device, max_seconds)
         dim start_time
+        dim label : label = mklabel("Connect")
 
         if not isobject(device) then
-            fatal "connect_and_wait: first argument must be an object"
+            fatal label & "first argument must be an object"
         end if
         
         if device.connected then
@@ -183,9 +202,14 @@
         loop
 
         if not device.connected then
-            fatal "connect_and_wait: Device " & device.name & " did not connect after " & max_seconds & " seconds"
+            fatal label & "'" & device.name & "' did not connect within " & max_seconds & " seconds"
         else
-            info "connect_and_wait: Device " & device.name & " connected after " & timer() - start_time & " seconds"
+            dim elapsed : elapsed = int(timer - start_time)
+            dim msg : msg = label & "'" & device.name & "' connected"
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"
+            end if
+            info msg
         end if
     end sub
 
@@ -193,7 +217,7 @@
     ' Take a nap
     '
     sub sleep(seconds)
-        Util.WaitForMilliseconds(seconds * 1000)
+        acp_util.WaitForMilliseconds(seconds * 1000)
     end sub
 
     '
@@ -206,11 +230,151 @@
         set shell = nothing
     end function
 
-    sub set_prog_name(name)
-        prog_name = name
+    function get_scriptname
+        get_prog = prog_name
+    end function
+
+    sub set_scriptname(value)
+        prog_name = value
     end sub
 
-    ]]>
-		</script>
-	</component>
+    function get_observatory
+        dim hostname : hostname = get_hostname
+
+        if hostname = "wo-neo" then
+            get_observatory = "c18"
+        elseif hostname = "c28-pc" then
+            get_observatory = "c28"
+        elseif hostname = "dome-pc" then
+            get_observatory = "wise40"
+        end if
+    end function
+
+    sub sync_telescope_to_absolute_encoders()
+        dim obs   : obs = get_observatory
+        dim label : label = mklabel("Encoders")
+
+        if not obs = "c28" then
+            exit sub
+        end if
+
+        dim reading, ha_reading, dec_reading, raw_reading
+        dim dec_ticks, dec_asecs, dec_degrees
+        dim ha_ticks, ha_asecs, ha_hours
+        dim ra_asecs, ra_hours
+
+        '
+        ' The absolute encoders are read via an USB interface, using an external 
+        '   utility (provided by the encoders' manufacturer) to read them
+        '
+        ' The output contains the declination and hour-angle readings, separated by a comma.
+        ' The first reading is for declination (index = 0), the second for hour-angle (index = 1)
+        ' Each encoder reading has the format: index:value:status
+        '
+        ' Where:
+        '  - index:  0 for declination, 1 for hour-angle
+        '  - value:  an integer
+        '  - status: either NoError or something else
+        '
+        ' Example:    0:256:NoError,1:1024:NoError
+        '
+        dim sh   : set sh = createobject ("WScript.Shell")
+        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\A2Read\bin\Debug\A2Read.exe COM10 0 1 retry=15")
+        raw_reading = exec.stdout.ReadLine()
+        set sh = nothing
+        set exec = nothing
+
+        reading = split(raw_reading, ",")           ' split the output at the comma
+        if ubound(reading) <> 1 then                ' we should get two parts
+            fatal label & "Bad reading from absolute encoders (reading: " & raw_reading & ")"
+        end if
+
+        dec_reading = split(reading(0), ":")        ' split the first reading (declination) at collons
+        if ubound(dec_reading) <> 2 then            ' we should get three parts
+            fatal label & "Bad DEC absolute encoder reading: " & reading(0)
+        end if
+
+        ha_reading = split(reading(1), ":")         ' split the second reading (hour-angle) at collons
+        if ubound(ha_reading) <> 2 then             ' we should get three parts
+            fatal label & "Bad RA absolute encoder reading: " & reading(1)
+        end if
+
+        if not ha_reading(2) = "NoError" or not dec_reading(2) = "NoError" then
+            fatal label & "Error(s) from absolute encoders: " & raw_reading
+        end if
+
+        dec_ticks = dec_reading(1)
+        ha_ticks = ha_reading(1)
+
+        '
+        ' Convert encoder ticks to coordinates
+        '
+        const asec_per_tick = 175.04                     ' number of arc seconds per encoder tick
+        dim zero_alt_asecs                               ' declination at 0 altitude South, negative value, in seconds
+        dim asec_in_90_deg
+
+        zero_alt_asecs = ( 30.596744 - 90 ) * 3600       ' declination at 0 altitude South, negative value, in seconds
+        asec_in_90_deg = ( 90 * 3600 )
+
+        dec_asecs = zero_alt_asecs  + ((dec_ticks + 51.01) * asec_per_tick)
+
+        if dec_asecs >= asec_in_90_deg then
+            dec_asecs = asec_in_90_deg - ( dec_asecs - asec_in_90_deg )
+        end if
+        dec_degrees = dec_asecs / 3600
+
+        ha_asecs = (ha_ticks + 51.01) * asec_per_tick   ' arc-seconds above horizon
+        ha_hours = (ha_asecs / 15) / 3600
+
+        dim lst : lst = acp_util.NowLST
+        if ha_ticks <= 1800 then
+            ra_hours = (lst - ( 6 - ha_hours ))
+            if ra_hours < 0 then
+                ra_hours = ra_hours + 24
+            end if
+        else
+            ra_hours = (lst + ( ha_hours - 6))
+            if ra_hours >= 24 then
+                ra_hours = ra_hours - 24
+            end if
+        end if
+
+        ' Calcullated corrections, by Shay Kaspi
+        dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
+        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-01:12:00")
+
+        ra_hours = ra_hours + ra_correction
+        dec_degrees = dec_degrees + dec_correction
+
+
+        '
+        ' Sync the FS2 with the correct coordinates
+        '
+        dim msg
+        acp_util.scripttelescope.SyncToCoordinates ra_hours, dec_degrees
+        msg = "RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", ":")
+        info label & msg
+
+    end sub
+
+    function get_prog
+        get_prog = prog_name
+    end function
+
+    function mklabel(str)
+        const label_length = 10
+        mklabel = "=> " & str & ": "
+    end function
+
+    sub run(message, command)
+        dim shell : set shell = createobject("WScript.Shell") 
+
+        info message
+        shell.run command
+        set shell = Nothing
+    end sub
+
+        ]]>
+        </script>
+    </component>
 </package>
