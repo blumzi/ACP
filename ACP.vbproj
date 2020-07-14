@@ -87,6 +87,7 @@
     <Content Include="Scripts\Wise\Wise.DliPowerSwitch.wsc" />
     <Content Include="Scripts\Wise\Wise.Dome.wsc" />
     <Content Include="Scripts\Wise\Wise.Http.wsc" />
+    <Content Include="Scripts\Wise\Wise.Tele.wsc" />
     <Content Include="Scripts\Wise\Wise.Util.wsc" />
     <Content Include="UserActions.wsc" />
     <Content Include="WeatherComponents\WiseWeather.wsc" />
