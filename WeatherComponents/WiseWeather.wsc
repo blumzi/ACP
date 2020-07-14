@@ -2,6 +2,7 @@
 <package>
 	<comment>
 <![CDATA[
+'vim:set sts=4 sw=4 ts=4 ignorecase:
 'tabs=4
 -----------------------------------------------------------------------------------------
 
@@ -38,7 +39,7 @@ Edit History:
 	</comment>
 	<component id="ACP.WiseWeather">
 		<?component error="true" debug="false" ?>
-		<registration progid="ACP.WiseWeather" classid="{3D129BC4-3066-412B-A768-630A82B1646F}" description="Queries Wise's central SafeToOperate SafetyMonitor" remotable="no" version="1.0">
+		<registration progid="ACP.WiseWeather" classid="{9c06acbc-fc77-4716-8454-b1135f1b6e34}" description="Queries the central SafeToOperate.SafetyMonitor at Wise" remotable="no" version="1.0">
 		</registration>
 		<public>
 			<method name="SetupDialog">
@@ -81,525 +82,491 @@ Edit History:
 				<get/>
 			</property>
 		</public>
-		<!-- <object id="FSO" progid="Scripting.FileSystemObject" events="false" reference="false"/> -->
-		<object id="acp_util" progid="ACP.Util" events="false" reference="true"/>
+
 		<script id="WiseWeather" language="VBScript">
+
 <![CDATA[
-Option Explicit
 
-Const SVR_VERSION = "1.0.0"
-Const PROG = "WiseWeather"
-Const ERR_SOURCE = "ACP.WiseWeather"
-Const PRP = "Property "				' Common bits for error messages
-Const NTI = " is not implemented"
-'
-' Manifest constants from Clarity II
-'
-Const cloudUnknown = 0
-Const cloudClear = 1
-Const cloudCloudy = 2
-Const cloudVeryCloudy = 3
-Const cloudWet = 4      ' Boltwood I only
-Const windUnknown = 0
-Const windCalm = 1
-Const windWindy = 2
-Const windVeryWindy = 3
-Const rainUnknown = 0
-Const rainDry = 1
-Const rainWet = 2      'sensor has water on it
-Const rainRain = 3     'falling rain drops detected
-Const dayUnknown = 0
-Const dayDark = 1
-Const dayLight = 2
-Const dayVeryLight = 3
-Const windUnitsKMH = 0
-Const windUnitsMPH = 1
-Const windUnitsMS = 2
-Const skyUnknown = 0
-Const skyClear = 1
-Const skyCloudy = 2
-Const skyVeryCloudy = 3
-Const skyWet = 4
-'
-' Polling interval, do not read file more often than this
-'
-Const POLL_INT = #00:01:00#
+    Option Explicit
 
-'
-' Code outside of any function or Sub is executed when this object is created.
-'
-dim connected
-dim lastIsSafeQueryTime
-dim lastSafe
-dim weather_station_is_reliable	' Should be set to True if the Boltwood station provides reliable data, to False otherwise
-dim ClarityII
-dim lastUnsafeReasons
-dim parking
-dim telescopeParkHA, telescopeParkDec, telescopeAltLimit, telescopeWasConnected
+    const SVR_VERSION = "1.0.0"
+    const PROG = "WiseWeather"
+    const ERR_SOURCE = "ACP.WiseWeather"
+    const PRP = "Property "				' Common bits for error messages
+    const NTI = " is not implemented"
+    '
+    ' Manifest constants from Clarity II
+    '
+    const cloudUnknown = 0
+    const cloudClear = 1
+    const cloudCloudy = 2
+    const cloudVeryCloudy = 3
+    const cloudWet = 4      ' Boltwood I only
+    const windUnknown = 0
+    const windCalm = 1
+    const windWindy = 2
+    const windVeryWindy = 3
+    const rainUnknown = 0
+    const rainDry = 1
+    const rainWet = 2      'sensor has water on it
+    const rainRain = 3     'falling rain drops detected
+    const dayUnknown = 0
+    const dayDark = 1
+    const dayLight = 2
+    const dayVeryLight = 3
+    const windUnitsKMH = 0
+    const windUnitsMPH = 1
+    const windUnitsMS = 2
+    const skyUnknown = 0
+    const skyClear = 1
+    const skyCloudy = 2
+    const skyVeryCloudy = 3
+    const skyWet = 4
 
-dim wise_util       : set wise_util = createobject("Wise.Util")
-dim dli         : set dli = createobject("Wise.DliPowerSwitch")
-dim wscript     : set wscript = createobject("WScript.Shell")
-dim wascom      : set wascom = createobject("Wise.Ascom")
-dim observatory : observatory = wise_util.observatory
+    '
+    ' Code outside of any function or Sub is executed when this object is created.
+    '
+    dim connected                 : connected = false
+    dim lastIsSafeQueryTime       : lastIsSafeQueryTime = cdate(now - #00:01:00#)
+    dim lastSafe                  : lastSafe = true
+    dim local_station_is_reliable : local_station_is_reliable = false	' Should be set to True if the Boltwood station provides reliable data, to False otherwise
+    dim lastUnsafeReasons         : lastUnsafeReasons = ""
+    dim ClarityII                 : set ClarityII = Nothing
 
-wise_util.set_prog_name "WiseWeather"
+    dim acp_util   : set acp_util   = createobject("ACP.Util")
+    dim wise_util  : set wise_util  = createobject("Wise.Util")
+    dim wise_ascom : set wise_ascom = createobject("Wise.Ascom")
+    dim wise_tele  : set wise_tele  = createobject("Wise.Tele")
+    dim obs        : obs = wise_util.observatory
 
-lastIsSafeQueryTime = CDate(Now - POLL_INT)
-lastSafe = True
-lastUnsafeReasons = ""
-connected = False
-weather_station_is_reliable = False
-if IsEmpty(ClarityII) then
-    set ClarityII = Nothing
-end if
-
-if acp_util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")  = "True" then
-    weather_station_is_reliable = True
-else
-	  weather_station_is_reliable = False
-end if
-
-telescopeParkHA = acp_util.Profile.GetValue("WiseWeather", "ParkHA", "0")
-telescopeParkDec = acp_util.Profile.GetValue("WiseWeather", "ParkDec", "0")
-telescopeAltLimit = acp_util.Profile.GetValue("WiseWeather", "AltLimit", "15")
-
-if weather_station_is_reliable and ClarityII is Nothing then
-    Set ClarityII = CreateObject("ClarityII.CloudSensorII")
-end if
-
-'------------------------------------------------------------------------------
-' Method SetupDialog()
-'
-' Parameters:   (none)
-' Returns:      (nothing)
-'
-' Invokes the weather access setup dialog. I put in a file selection dialog,
-' courtesy of ACP's Util object which you have use of automatically here.
-'------------------------------------------------------------------------------
-Sub SetupDialog()
-	  dim response
-
-	  response = InputBox("The Wise server's IP address", "Server address", wascom.Server)
-	  if not isempty(response) then
-		    wascom.Server = response
-	  end if
-
-	  response = InputBox("The Wise server's IP port", "Server port", wascom.Port)
-	  if not isempty(response) then
-		    wascom.Port = response
-	  end if	
-
-	  response = MsgBox("Is the local weather station reliable?", vbYesNo)
-	  if response = vbYes then
-		    weather_station_is_reliable = True
-	  else
-		    weather_station_is_reliable = False
-	  end if
-	  acp_util.Profile.WriteValue "WiseWeather", weather_station_is_reliable, "LocalStationIsReliable"
-
-    response = InputBox("Telescope altitude limit", "Alt limit (degrees):", telescopeAltLimit)
-    if not isempty(response) then
-        telescopeAltLimit = response
-    end if
-	  acp_util.Profile.WriteValue "WiseWeather", telescopeAltLimit, "AltLimit"
-
-    response = InputBox("Telescope parking HourAngle", "HourAngle (hours):", telescopeParkHA)
-    if not isempty(response) then
-        telescopeParkHA = response
-    end if
-
-    response = InputBox("Telescope parking Declination", "Declination (degrees):", telescopeParkDec)
-    if not isempty(response) then
-        telescopeParkDec = response
-    end if
-	  acp_util.Profile.WriteValue "WiseWeather", telescopeParkDec, "ParkDec"
-
-end Sub
-
-function is_success(s)
-    is_success = Left(s, 6) <> "error:"
-end function
-
-'------------------------------------------------------------------------------
-' Property Connected (R/W, REQUIRED)
-'
-' True means weather sensor is connected and operating (Boolean). 
-' Set True to connect.
-'------------------------------------------------------------------------------
-' dim Connected									            ' PrimalScript UI target (typ.)
-function get_Connected()
-	  get_Connected = connected
-end function
-
-function put_Connected(newValue)
-    connected = newValue
-
-    if newValue then
-        wise_util.trace "Connected (observatory: " & observatory & ", weather_station_is_reliable: " & weather_station_is_reliable & ", useLocalStation: " & useLocalStation & ")"
+    if lcase(acp_util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")) = "true" Then
+        local_station_is_reliable = true
     else
-        wise_util.trace "Disconnected"
+        local_station_is_reliable = false
     end if
-end function
 
-function useLocalStation() 
-    useLocalStation = weather_station_is_reliable and not ClarityII Is Nothing
-end function
-
-'------------------------------------------------------------------------------
-' Property AmbientTemperature (R/O, OPTIONAL)
-'
-' The ambient (outside) air temperature (Single, deg.C)
-'------------------------------------------------------------------------------
-' dim AmbientTemperature
-function get_AmbientTemperature()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/temperature")
-	  if is_success(response) then
-        get_AmbientTemperature = response
-    elseif useLocalStation then
-		    get_AmbientTemperature = ClarityII.AmbientT
+    if local_station_is_reliable and ClarityII is Nothing Then
+        Set ClarityII = CreateObject("ClarityII.CloudSensorII")
     end if
-    wise_util.trace "get_AmbientTemperature => " & get_AmbientTemperature
-end function
 
-'------------------------------------------------------------------------------
-' Property BarometricPressure (R/O, OPTIONAL)
-'
-' The barometric pressure (Single, millibars)
-' NOTE: This must be in millibars, per international aviation weather reporting
-'       standards.
-'------------------------------------------------------------------------------
-' dim BarometricPressure
-function get_BarometricPressure()
-    dim response
+    '------------------------------------------------------------------------------
+    ' Method SetupDialog()
+    '
+    ' Parameters:   (none)
+    ' Returns:      (nothing)
+    '
+    ' Invokes the weather access setup dialog. I put in a file selection dialog,
+    ' courtesy of ACP's Util object which you have use of automatically here.
+    '------------------------------------------------------------------------------
+    sub SetupDialog()
+        dim response
 
-    response = wascom.get_url("observingconditions/0/pressure")
-	  if is_success(response) then
-		  get_BarometricPressure = response
-	  end if
-    wise_util.trace "get_BarometricPressure => " & get_BarometricPressure
-end function
+        response = InputBox("The Wise server's IP address", "Server address", wise_ascom.server)
+        if not isempty(response) then
+            wise_ascom.server = response
+        end if
 
-'------------------------------------------------------------------------------
-' Property Clouds (R/O, OPTIONAL)
-'
-' Cloud coverage (Single, fractional 0-1)
-'------------------------------------------------------------------------------
-' dim Clouds
-function get_Clouds()
-    dim response
+        response = InputBox("The Wise server's IP port", "Server port", wise_ascom.port)
+        if not isempty(response) then
+            wise_ascom.port = response
+        end if	
 
-    response =  wascom.get_url("observingconditions/0/cloudcover")
-	  if is_success(response)  then
-		    get_Clouds = response
-	  elseif useLocalStation then
-        select case ClarityII.CloudCondition
-            case cloudClear
-                get_Clouds = 0.0
-            case cloudClear
-                get_Clouds = 0.5
-            case cloudVeryCloudy
-                get_Clouds = 0.9
-            case cloudUnknown
-                get_Clouds = 0.0
+        local_station_is_reliable = acp_util.profile.getvalue("WiseWeather", "LocalStationIsReliable")
+        dim default_button
+        if local_station_is_reliable then
+            default_button = vbDefaultButton1
+        else
+            default_button = vbDefaultButton2
+        end if
+        response = MsgBox("Is the local weather station reliable?", vbYesNo + default_button)
+        if response = vbYes Then
+            local_station_is_reliable = True
+        else
+            local_station_is_reliable = False
+        end if
+        acp_util.Profile.WriteValue "WiseWeather", local_station_is_reliable, "LocalStationIsReliable"
+
+        response = InputBox("Telescope altitude limit", "Alt limit (degrees):", wise_tele.alt_limit)
+        if response <> "" Then
+            wise_tele.alt_limit = response
+        end if
+
+        response = InputBox("Telescope parking HourAngle", "HourAngle (hours):", wise_tele.parking_ha)
+        if response <> "" Then
+            wise_tele.parking_ha = response
+        end if
+
+        response = InputBox("Telescope parking Declination", "Declination (degrees):", wise_tele.parking_dec)
+        if response <> "" Then
+            wise_tele.parking_dec = response
+        end if
+
+    end sub
+
+    function is_success(s)
+        is_success = left(s, 6) <> "error:"
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property Connected (R/W, REQUIRED)
+    '
+    ' True means weather sensor is connected and operating (Boolean). 
+    ' Set True to connect.
+    '------------------------------------------------------------------------------
+    ' dim Connected									            ' PrimalScript UI target (typ.)
+    function get_Connected()
+        get_Connected = connected
+    end function
+
+    function put_Connected(newValue)
+        connected = newValue
+
+        if newValue Then
+            wise_util.trace " "
+            wise_util.trace "Connected (observatory: " & obs & ", local_station_is_reliable: " & local_station_is_reliable & ", use_local_station: " & use_local_station & ")"
+            wise_tele.check_limits
+        else
+            wise_util.trace "Disconnected"
+        end if
+    end function
+
+    function use_local_station() 
+        use_local_station = local_station_is_reliable and not ClarityII is Nothing
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property AmbientTemperature (R/O, OPTIONAL)
+    '
+    ' The ambient (outside) air temperature (Single, deg.C)
+    '------------------------------------------------------------------------------
+    ' dim AmbientTemperature
+    function get_AmbientTemperature()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/temperature")
+        if is_success(response) Then
+            get_AmbientTemperature = response
+        elseif use_local_station Then
+            get_AmbientTemperature = ClarityII.AmbientT
+        end if
+        wise_util.trace "get_AmbientTemperature => " & get_AmbientTemperature
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property BarometricPressure (R/O, OPTIONAL)
+    '
+    ' The barometric pressure (Single, millibars)
+    ' NOTE: This must be in millibars, per international aviation weather reporting
+    '       standards.
+    '------------------------------------------------------------------------------
+    ' dim BarometricPressure
+    function get_BarometricPressure()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/pressure")
+        if is_success(response) Then
+            get_BarometricPressure = response
+        end if
+        wise_util.trace "get_BarometricPressure => " & get_BarometricPressure
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property Clouds (R/O, OPTIONAL)
+    '
+    ' Cloud coverage (Single, fractional 0-1)
+    '------------------------------------------------------------------------------
+    ' dim Clouds
+    function get_Clouds()
+        dim response
+
+        response =  wise_ascom.get_url("observingconditions/0/cloudcover")
+        if is_success(response)  Then
+            get_Clouds = response
+        elseif use_local_station Then
+            select case ClarityII.CloudCondition
+                case cloudClear
+                    get_Clouds = 0.0
+                case cloudClear
+                    get_Clouds = 0.5
+                case cloudVeryCloudy
+                    get_Clouds = 0.9
+                case cloudUnknown
+                    get_Clouds = 0.0
+            end select
+        end if
+        wise_util.trace "get_Clouds => " & get_Clouds
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property DewPoint (R/O, OPTIONAL)
+    '
+    ' The dew point temperature (Single, deg C)
+    '------------------------------------------------------------------------------
+    ' dim DewPoint
+    function get_DewPoint()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/dewpoint")
+        if is_success(response) Then
+            get_DewPoint = response
+        elseif use_local_station Then
+            get_DewPoint = ClarityII.DewPointT
+        end if
+        wise_util.trace "get_DewPoint => " & get_DewPoint
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property InsideTemperature (R/O, OPTIONAL)
+    '
+    ' The temperature inside the observatory (Single, deg C)
+    '------------------------------------------------------------------------------
+    ' dim InsideTemperature
+    function get_InsideTemperature()
+        Err.Raise &H80040400, ERR_SOURCE, PRP & "Get InsideTemperature" & NTI
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property Name (R/O, OPTIONAL)
+    '
+    ' The display name of the weather system (String)
+    '------------------------------------------------------------------------------
+    ' dim Name
+    function get_Name()
+        get_Name = PROG
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property Precipitation (R/O, OPTIONAL)
+    '
+    ' True if precipitation is present (Boolean)
+    '------------------------------------------------------------------------------
+    ' dim Precipitation
+    function get_Precipitation()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/rainrate")
+        if is_success(response) Then
+            get_Precipitation = response
+        elseif use_local_station Then
+            get_Precipitation = (ClarityII.RainCondition = rainRain)
+        end if
+        wise_util.trace "get_Precipitation => " & get_Precipitation
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property RelativeHumidity (R/O, OPTIONAL)
+    '
+    ' The relative humidity (Single, fractional 0-1)
+    '------------------------------------------------------------------------------
+    ' dim RelativeHumidity
+    function get_RelativeHumidity()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/humidity")
+        if is_success(response) Then
+            get_RelativeHumidity = response
+        elseif use_local_station Then
+            get_RelativeHumidity = ClarityII.HumidityPercent
+        end if
+        wise_util.trace "get_RelativeHumidity => " & get_RelativeHumidity
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property Safe (R/O, REQUIRED)
+    '
+    ' Return True when weather is safe, False when not. Returning False will
+    ' stop any ACP script in progress and cause alarm and shutdown processes
+    ' to be initiated.
+    '------------------------------------------------------------------------------
+    ' dim Safe
+    function get_Safe()
+        get_Safe = WiseIsSafe
+
+        if not get_Safe And lastSafe Then                ' if this is a change from safe to unsafe
+            wise_util.warning("Safety: Wise became unsafe to operate!")
+            dim response : response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
+
+            dim reasons, i
+            reasons = unsafereasons2array(response)
+            for i = 0 to ubound(reasons) - 1
+                wise_util.trace "Safety: unsafereason: " & reasons(i)
+            next
+        elseif get_safe and not lastSafe Then
+            wise_util.info("Safety: Wise became safe to operate!")
+        end if
+        
+        lastSafe = get_Safe
+        
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property SkyTemperature (R/O, OPTIONAL)
+    '
+    ' The sky temperature (Single, deg C)
+    '------------------------------------------------------------------------------
+    ' dim SkyTemperature
+    function get_SkyTemperature()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/skytemperature")
+        if is_success(response)  Then
+            get_SkyTemperature = response
+        elseif use_local_station Then
+            get_SkyTemperature = ClarityII.RelSkyT
+        end if
+        wise_util.trace "get_SkyTemperature => " & get_SkyTemperature
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property WindDirection (R/O, OPTIONAL)
+    '
+    ' The azimuth FROM which the wind is blowing (Single, deg. magnetic)
+    ' NOTE: This must be in degrees MAGNETIC, per international aviation weather 
+    '       reporting standards.
+    '------------------------------------------------------------------------------
+    ' dim WindDirection
+    function get_WindDirection()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/winddirection")
+        if is_success(response) Then
+            get_WindDirection = response
+        end if
+        wise_util.trace "get_WindDirection => " & get_WindDirection
+    end function
+
+    function KMHToKnots(kmh)
+        KMHToKnots = kmh / 1.852
+    end function
+
+    function MPHToKnots(mph)
+        MPHToKnots = mph / 1.151
+    end function
+
+    function MSToKnots(ms)
+        MSToKnots = ms * 1.944
+    end function
+
+    '------------------------------------------------------------------------------
+    ' Property WindVelocity (R/O, OPTIONAL)
+    '
+    ' The wind velocity (Single, knots)
+    '------------------------------------------------------------------------------
+    ' dim WindVelocity
+    function get_WindVelocity()
+        dim response
+
+        response = wise_ascom.get_url("observingconditions/0/windspeed")
+        if is_success(response) Then
+            get_WindVelocity = MSToKnots(response)
+        elseif use_local_station Then
+            select case ClarityII.WindUnits
+                case windUnitsKMH
+                    get_WindVelocity = KMHToKnots(ClarityII.Wind)
+                case windUnitsMPH
+                    get_WindVelocity = MPHToKnots(ClarityII.Wind)
+                case windUnitsMS
+                    get_WindVelocity = MSToKnots(ClarityII.Wind)
+            end select
+
+            get_WindVelocity = NormalizedClarityIIWind(ClarityII.Wind)
+            wise_util.trace "get_WindVelocity => " & get_WindVelocity & " Clarity.Wind: " & ClarityII.Wind & " Clarity.WindUnits: " & ClarityII.WindUnits
+        end if
+    end function
+
+    function NormalizedClarityIIWind(value)
+        select case obs
+            case "c28"
+                NormalizedClarityIIWind = value '* 0.80
+            case "c18"
+                NormalizedClarityIIWind = value '* 0.70
         end select
-	  end if
-    wise_util.trace "get_Clouds => " & get_Clouds
-end function
+    end function
 
-'------------------------------------------------------------------------------
-' Property DewPoint (R/O, OPTIONAL)
-'
-' The dew point temperature (Single, deg C)
-'------------------------------------------------------------------------------
-' dim DewPoint
-function get_DewPoint()
-    dim response
+    function WiseIsSafe()
+        dim response, seconds, i, items
+                
+        seconds = datediff("s", lastIsSafeQueryTime, Now)
+        if (seconds < 60) Then
+            WiseIsSafe = lastSafe
+            exit function
+        end if
 
-    response = wascom.get_url("observingconditions/0/dewpoint")
-    if is_success(response) then
-		    get_DewPoint = response
-	  elseif useLocalStation then
-		    get_DewPoint = ClarityII.DewPointT
-	  end if
-    wise_util.trace "get_DewPoint => " & get_DewPoint
-end function
+        response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-issafe&Parameters=")
 
-'------------------------------------------------------------------------------
-' Property InsideTemperature (R/O, OPTIONAL)
-'
-' The temperature inside the observatory (Single, deg C)
-'------------------------------------------------------------------------------
-' dim InsideTemperature
-function get_InsideTemperature()
-	  Err.Raise &H80040400, ERR_SOURCE, PRP & "Get InsideTemperature" & NTI
-end function
-
-'------------------------------------------------------------------------------
-' Property Name (R/O, OPTIONAL)
-'
-' The display name of the weather system (String)
-'------------------------------------------------------------------------------
-' dim Name
-function get_Name()
-    get_Name = PROG
-end function
-
-'------------------------------------------------------------------------------
-' Property Precipitation (R/O, OPTIONAL)
-'
-' True if precipitation is present (Boolean)
-'------------------------------------------------------------------------------
-' dim Precipitation
-function get_Precipitation()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/rainrate")
-	  if is_success(response) then
-		    get_Precipitation = response
-	  elseif useLocalStation then
-		    get_Precipitation = (ClarityII.RainCondition = rainRain)
-	  end if
-    wise_util.trace "get_Precipitation => " & get_Precipitation
-end function
-
-'------------------------------------------------------------------------------
-' Property RelativeHumidity (R/O, OPTIONAL)
-'
-' The relative humidity (Single, fractional 0-1)
-'------------------------------------------------------------------------------
-' dim RelativeHumidity
-function get_RelativeHumidity()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/humidity")
-	  if is_success(response) then
-		    get_RelativeHumidity = response
-	  elseif useLocalStation then
-		    get_RelativeHumidity = ClarityII.HumidityPercent
-	  end if
-    wise_util.trace "get_RelativeHumidity => " & get_RelativeHumidity
-end function
-
-'------------------------------------------------------------------------------
-' Property Safe (R/O, REQUIRED)
-'
-' Return True when weather is safe, False when not. Returning False will
-' stop any ACP script in progress and cause alarm and shutdown processes
-' to be initiated.
-'------------------------------------------------------------------------------
-' dim Safe
-function get_Safe()
-	  get_Safe = WiseIsSafe
-
-	  if not get_Safe And lastSafe then                ' if this is a change from safe to unsafe
-		    wise_util.info "Safety: Wise became unsafe to operate!"
-	  elseif get_safe and not lastSafe then
-		    wise_util.info "Safety: Wise became safe to operate!"
-	  end if
-    
-	  lastSafe = get_Safe
-	
-end function
-
-'------------------------------------------------------------------------------
-' Property SkyTemperature (R/O, OPTIONAL)
-'
-' The sky temperature (Single, deg C)
-'------------------------------------------------------------------------------
-' dim SkyTemperature
-function get_SkyTemperature()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/skytemperature")
-	  if is_success(response)  then
-		    get_SkyTemperature = response
-	  elseif useLocalStation then
-		    get_SkyTemperature = ClarityII.RelSkyT
-	  end if
-    wise_util.trace "get_SkyTemperature => " & get_SkyTemperature
-end function
-
-'------------------------------------------------------------------------------
-' Property WindDirection (R/O, OPTIONAL)
-'
-' The azimuth FROM which the wind is blowing (Single, deg. magnetic)
-' NOTE: This must be in degrees MAGNETIC, per international aviation weather 
-'       reporting standards.
-'------------------------------------------------------------------------------
-' dim WindDirection
-function get_WindDirection()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/winddirection")
-	  if is_success(response) then
-		    get_WindDirection = response
-	  end if
-    wise_util.trace "get_WindDirection => " & get_WindDirection
-end function
-
-function KMHToKnots(kmh)
-    KMHToKnots = kmh / 1.852
-end function
-
-function MPHToKnots(mph)
-    MPHToKnots = mph / 1.151
-end function
-
-function MSToKnots(ms)
-    MSToKnots = ms * 1.944
-end function
-
-'------------------------------------------------------------------------------
-' Property WindVelocity (R/O, OPTIONAL)
-'
-' The wind velocity (Single, knots)
-'------------------------------------------------------------------------------
-' dim WindVelocity
-function get_WindVelocity()
-    dim response
-
-    response = wascom.get_url("observingconditions/0/windspeed")
-	  if is_success(response) then
-		    get_WindVelocity = MSToKnots(response)
-	  elseif useLocalStation then
-        select case ClarityII.WindUnits
-            case windUnitsKMH
-                get_WindVelocity = KMHToKnots(ClarityII.Wind)
-            case windUnitsMPH
-                get_WindVelocity = MPHToKnots(ClarityII.Wind)
-            case windUnitsMS
-                get_WindVelocity = MSToKnots(ClarityII.Wind)
-        end select
-
-        get_WindVelocity = NormalizedClarityIIWind(ClarityII.Wind)
-        wise_util.trace "get_WindVelocity => " & get_WindVelocity & " Clarity.Wind: " & ClarityII.Wind & " Clarity.WindUnits: " & ClarityII.WindUnits
-	end if
-end function
-
-function NormalizedClarityIIWind(value)
-    select case observatory
-        case "c28"
-            NormalizedClarityIIWind = value '* 0.80
-        case "c18"
-            NormalizedClarityIIWind = value '* 0.70
-    end select
-end function
-
-function WiseIsSafe()
-	  dim response, i, items
-			
-	  if DateDiff("s", lastIsSafeQueryTime, Now) < 60 then
-		  WiseIsSafe = lastSafe
-		  exit function
-	  end if
-
-    response = wascom.put_url("safetymonitor/0/action", "Action=wise-issafe&Parameters=")
-
-	  if not is_success(response) then
-		    if useLocalStation then
+        if not is_success(response) Then
+            'wise_util.trace "[W] remote wise-issafe response '" & response & "'"
+            if use_local_station Then
                 WiseIsSafe = _
                     ClarityII.HumidityPercent <= 85.0 And _
                     NormalizedClarityIIWind(ClarityII.Wind) <= 40.0 And _
                     ClarityII.SkyCond = skyClear And _
                     ClarityII.SecondsSinceGoodData < 60
-		    else
-			    WiseIsSafe = False
-		    end if
-	  elseif (response = "False") then
-		    WiseIsSafe = False
-		    response = wascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
-            if response <> lastUnsafeReasons then
+                wise_util.trace "[I] local station is reliable => wiseissafe = " & wiseissafe
+            else
+                WiseIsSafe = False
+                wise_util.trace "[I] local station is not reliable => wiseissafe = " & wiseissafe
+            end if
+        elseif (response = "false") Then
+            WiseIsSafe = False
+            'wise_util.trace "[I] remote wise-issafe response: '" & response & "' => wiseissafe = " & wiseissafe
+            response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
+            if response <> lastUnsafeReasons Then
                 lastUnsafeReasons = response
-                if (InStr(response, "HumanIntervention")) then
-                    response = replace(response, chr(34), "")
-                    response = replace(response, "[", "")
-                    response = replace(response, "]", "")
-                    items = Split(response, ";")
-                    For i=1 to UBound(items)
-                        wise_util.info "Safety: HumanIntervention: " & items(i)
-                    Next
+                dim reasons : reasons = unsafereasons2array(response)
+
+                if (instr(response, "HumanIntervention")) then
+                    for i = 1 to ubound(reasons) - 1
+                        wise_util.trace("Safety: HumanIntervention: " & reasons(i))
+                    next
                 else
-                    wise_util.info "Safety: Wise is NOT safe: " & response
+                    for i = 0 to ubound(reasons) - 1
+                        wise_util.trace("Safety: unsafereason: " & reasons(i))
+                    next
                 end if
             end if
-	  elseif (response = "True") then
-		    WiseIsSafe = True
-	  end if
-	
-	  lastIsSafeQueryTime = Now
-
-    if observatory = "c18" then
-        park_if_under_limit
-    end if
-end function
-
-'--------------------------------------------------------------------
-' ACP calls IsSafe every 10 seconds,
-'   IsSafe calls WiseIsSafe,
-'       WiseIsSafe:
-'           Checks safety and returns the same value for one minute
-'           Once a minute it calls park_if_under_limit
-'
-' if the telescope's altitude is less than the telescopeAltLimit
-'  it is sent (asynchronously) to the pre-defined parking coordinates
-'--------------------------------------------------------------------
-Sub park_if_under_limit()
-    dim response
-
-    if not observatory = "c28" then _
-        exit sub
-
-    if not dli.has_power("Telescope") then
-        wise_util.trace "park_if_under_limit: The telescope is powered OFF"
-        exit sub
-    end if
-
-    if not acp_util.TelescopeConnected then
-        acp_util.TelescopeConnected = True
-        acp_util.WaitForMilliseconds(1000)
-        if not acp_util.TelescopeConnected then
-            wise_util.trace "park_if_under_limit: Cannot set acp_util.TelescopeConnected to True"
-            exit Sub
+        elseif (response = "true") Then
+            'wise_util.trace "[I] remote wise-issafe response: " & response & " => wiseissafe = " & wiseissafe
+            WiseIsSafe = True
         end if
-        telescopeWasConnected = True
-    end if
+        
+        lastIsSafeQueryTime = Now
 
-    if parking then
-        if not acp_util.ScriptTelescope.Slewing then
-            ' We were parking and the telescope stopped Slewing => The slew ended
-            wise_util.trace "park_if_under_limit: Telescope is parked at (" & acp_util.ScriptTelescope.HourAngle & ", " & acp_util.ScriptTelescope.Declination & ")"
-            parking = False
+        wise_tele.check_limits
+
+    end function
+
+
+    function unsafereasons2array(str)
+        dim ret, items, i
+
+        'wise_util.trace "unsafereasons2array: str '" & str & "'"
+        str = replace(str, chr(34), "")
+        str = replace(str, "[", "")
+        str = replace(str, "]", "")
+        'wise_util.trace "unsafereasons2array: str '" & str & "'"
+        if instr(str, "HumanIntervention") Then
+            items = split(str, ";")
+        else
+            items = split(str, ",")
         end if
 
-        if telescopeWasConnected then acp_util.TelescopeConnected = False
-        exit Sub     'guard against being called while the telescope is still parking
-    end if
+        if ubound(items) = 0 then
+            redim ret(1)
+            ret(0) = str
+        else
+            redim ret(ubound(items))
+            for i = 0 to ubound(items)
+                ret(i) = items(i)
+            next
+        end if
 
-    if acp_util.ScriptTelescope.Altitude >= telescopeAltLimit then
-        wise_util.trace "park_if_under_limit: Telescope is at altitude " & acp_util.ScriptTelescope.Altitude & " (above " & telescopeAltLimit & ")"
-        if telescopeWasConnected then acp_util.TelescopeConnected = False
-        exit Sub     ' Telescope is above AltLimit
-    end if
+        unsafereasons2array = ret
+        'for i = 0 to ubound(ret) - 1
+            'wise_util.trace "unsafereasons2array(" & i & ") '" & ret(i) & "'"
+        'next
+    end function
 
-    ' We're commited to start parking the telescope
-    dim millis
-    millis = 1000
-    wise_util.trace "park_if_under_limit: Sending telescope to parking position (" & telescopeParkHA & ", " & telescopeParkDec & ")"
-    if not acp_util.TelescopeConnected then
-        acp_util.TelescopeConnected = True
-        telescopeWasConnected = True
-    end if
-
-    ' A synchronous slew would be risky, ACP calls us every minute and the parking may take longer
-    acp_util.ScriptTelescope.SlewToCoordinatesAsync acp_util.NowLST() - telescopeParkHA, telescopeParkDec 
-    While not acp_util.ScriptTelescope.Slewing
-        wise_util.trace "park_if_under_limit: Waiting " & millis & " millis for the telescope to start slewing ..."
-        Sleep millis
-    Wend
-end sub
 
 ]]>
 		</script>

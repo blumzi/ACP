@@ -27,7 +27,7 @@
     ]]>
 	</comment>
 	<component>
-		<?component error="false" debug="false" ?>
+		<?component error="true" debug="true" ?>
 		<registration
             progid="Wise.Ascom" 
             classid="{3c132db0-a1c5-4278-a2af-04880d52f522}" 
@@ -43,13 +43,13 @@
                 <parameter name="url"/>
                 <parameter name="data"/>
 			</method>
-            <property name="Server">
+            <property name="server">
                 <get/>
-                <set/>
+                <put/>
             </property>
-            <property name="Port">
+            <property name="port">
                 <get/>
-                <set/>
+                <put/>
             </property>
 		</public>
 
@@ -57,38 +57,37 @@
 
     <![CDATA[
 
-    dim server_url, server_port, server_addr
-    dim acp : set acp = createobject("ACP.Util")
-    dim whttp : set whttp = createobject("Wise.Http")
+    dim acp_util  : set acp_util  = createobject("ACP.Util")
+    dim wise_http : set wise_http = createobject("Wise.Http")
 
-    server_addr = get_Server
-    server_port = get_Port
-    server_url = "http://" & server_addr & ":" & server_port & "/api/v1/"
+    server_url = "http://" & get_server & ":" & get_port & "/api/v1/"
+
+    const main_key = "WiseAscom"
+    const server_subkey = "Server"
+    const port_subkey = "Port"
 
     function get_url(url)
-        get_url = whttp.request("GET", server_url & url, Null, Null, Null)
+        get_url = wise_http.request("GET", server_url & url, null, null, null)
     end function
 
     function put_url(url, data)
-        put_url = whttp.request("PUT", server_url & url, data, Null, Null)
+        put_url = wise_http.request("PUT", server_url & url, data, null, null)
     end function
 
-    function get_Server
-        get_Server = acp.Profile.GetValue("WiseAscom", "Server", "132.66.65.9")
+    function get_server
+        get_server = acp_util.Profile.GetValue(main_key, server_subkey, "132.66.65.9")
     end function
 
-    sub set_Server(value)
-        server_addr = value
-        acp.Profile.WriteValue "WiseAscom", "Server", server_addr
+    sub put_server(value)
+        acp_util.Profile.WriteValue main_key, value, server_subkey
     end sub
 
-    function get_Port
-        get_Port = acp.Profile.GetValue("WiseAscom", "Server", "11111")
+    function get_port
+        get_port = acp_util.Profile.GetValue(main_key, port_subkey, "11111")
     end function
 
-    sub set_Port(value)
-        server_port = value
-        acp.Profile.WriteValue "WiseAscom", "Port", server_port
+    sub put_port(value)
+        acp_util.Profile.WriteValue main_key, value, port_subkey
     end sub
 
     ]]>

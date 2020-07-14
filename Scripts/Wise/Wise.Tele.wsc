@@ -1,0 +1,361 @@
+<?xml version="1.0" ?>
+<!-- vim:se expandtab ts=4 sw=4 -->
+<package>
+    <comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    Some Wise Telescope methods
+    ==================================================
+
+    Script:         Wise.Tele.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This is a bunch of Wise utilities useful for ACP scripts
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        07-Jul-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+    </comment>
+    <component>
+        <?component error="true" debug="true" ?>
+        <registration
+            progid="Wise.Tele" 
+            classid="{e70b9b54-658e-45be-9962-984cc10ac7dc}" 
+            description="Wise telescope methods" 
+            remotable="no" 
+            version="1.0">
+        </registration>
+        <public>
+            <method name="startup"/>
+            <method name="sync_to_absolute_encoders"/>
+            <method name="check_limits"/>
+            <property name="parking_ha">
+                <get/>
+                <put/>
+            </property>
+            <property name="parking_dec">
+                <get/>
+                <put/>
+            </property>
+            <property name="alt_limit">
+                <get/>
+                <put/>
+            </property>
+        </public>
+
+        <script language="VBScript">
+
+    <![CDATA[
+
+    dim wise_util : set wise_util = createobject("Wise.Util")
+    dim acp_util  : set acp_util = createobject("ACP.Util")
+    dim obs       : obs = wise_util.observatory
+    dim label     : label = wise_util.mklabel("Tele")
+
+    dim was_connected : was_connected = false
+
+    dim parking     : parking     = false
+    dim parking_ha  : parking_ha  = cdbl(get_parking_ha)
+    dim parking_dec : parking_dec = cdbl(get_parking_dec)
+    dim alt_limit   : alt_limit   = cdbl(get_alt_limit)
+
+    const main_key         = "WiseWeather"
+    const alt_limit_subkey = "AltLimit"
+    const park_ha_subkey   = "ParkHA"
+    const park_dec_subkey  = "ParkDec"
+
+    dim dli
+    dim acp_tele : set acp_tele = createobject("ACP.Telescope")
+
+    select case obs
+        case "c18"
+            set dli = createobject("Wise.DliPowerSwitch")
+
+        case "c28"
+            set dli = createobject("Wise.DliPowerSwitch")
+
+        case "wise40"
+            set dli = nothing
+    end select
+
+
+    sub startup
+
+        if not isnull(dli) then
+            if not dli.has_power("Telescope") then
+                dli.power_on("Telescope")
+                wise_util.sleep 3
+            end if
+        end if
+
+        if not acp_util.telescopeconnected then
+            const max_seconds = 30
+            dim elapsed    : elapsed = 0
+            dim start_time : start_time = timer
+
+            wise_util.info label & "Connecting telescope ..."
+            on error resume next
+            acp_util.telescopeconnected = True
+            if err.number <> 0 then
+                wise_util.fatal label & err.description
+            end if
+            on error goto 0
+
+            do while not acp_util.telescopeconnected and elapsed < max_seconds
+                wise_util.sleep 2
+                elapsed = int(timer - start_time)
+            loop
+
+            if not acp_util.telescopeconnected then
+                wise_util.fatal label & "Telescope not connected within " & max_seconds & " seconds"
+            end if
+
+            dim msg : msg = "Telescope connected"
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"
+            end if
+            wise_util.info label & msg
+        end if
+
+    end sub
+
+    sub sync_to_absolute_encoders
+        dim label : label = wise_util.mklabel("Encoders")
+
+        if not obs = "c28" then
+            exit sub
+        end if
+
+        dim reading, ha_reading, dec_reading, raw_reading
+        dim dec_ticks, dec_asecs, dec_degrees
+        dim ha_ticks, ha_asecs, ha_hours
+        dim ra_asecs, ra_hours
+
+        '
+        ' The absolute encoders are read via an USB interface, using an external 
+        '   utility (provided by the encoders' manufacturer) to read them
+        '
+        ' The output contains the declination and hour-angle readings, separated by a comma.
+        ' The first reading is for declination (index = 0), the second for hour-angle (index = 1)
+        ' Each encoder reading has the format: index:value:status
+        '
+        ' Where:
+        '  - index:  0 for declination, 1 for hour-angle
+        '  - value:  an integer
+        '  - status: either NoError or something else
+        '
+        ' Example:    0:256:NoError,1:1024:NoError
+        '
+        dim sh   : set sh = createobject ("WScript.Shell")
+        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\A2Read\bin\Debug\A2Read.exe COM10 0 1 retry=15")
+        raw_reading = exec.stdout.ReadLine()
+        set sh = nothing
+        set exec = nothing
+
+        reading = split(raw_reading, ",")           ' split the output at the comma
+        if ubound(reading) <> 1 then                ' we should get two parts
+            wise_util.fatal label & "Bad reading from absolute encoders (reading: " & raw_reading & ")"
+        end if
+
+        dec_reading = split(reading(0), ":")        ' split the first reading (declination) at collons
+        if ubound(dec_reading) <> 2 then            ' we should get three parts
+            wise_util.fatal label & "Bad DEC absolute encoder reading: " & reading(0)
+        end if
+
+        ha_reading = split(reading(1), ":")         ' split the second reading (hour-angle) at collons
+        if ubound(ha_reading) <> 2 then             ' we should get three parts
+            wise_util.fatal label & "Bad RA absolute encoder reading: " & reading(1)
+        end if
+
+        if not ha_reading(2) = "NoError" or not dec_reading(2) = "NoError" then
+            wise_util.fatal label & "Error(s) from absolute encoders: " & raw_reading
+        end if
+
+        dec_ticks = dec_reading(1)
+        ha_ticks = ha_reading(1)
+
+        '
+        ' Convert encoder ticks to coordinates
+        '
+        const asec_per_tick = 175.04                     ' number of arc seconds per encoder tick
+        dim zero_alt_asecs                               ' declination at 0 altitude South, negative value, in seconds
+        dim asec_in_90_deg
+
+        zero_alt_asecs = ( 30.596744 - 90 ) * 3600       ' declination at 0 altitude South, negative value, in seconds
+        asec_in_90_deg = ( 90 * 3600 )
+
+        dec_asecs = zero_alt_asecs  + ((dec_ticks + 51.01) * asec_per_tick)
+
+        if dec_asecs >= asec_in_90_deg then
+            dec_asecs = asec_in_90_deg - ( dec_asecs - asec_in_90_deg )
+        end if
+        dec_degrees = dec_asecs / 3600
+
+        ha_asecs = (ha_ticks + 51.01) * asec_per_tick   ' arc-seconds above horizon
+        ha_hours = (ha_asecs / 15) / 3600
+
+        dim lst : lst = acp_util.nowlst
+        if ha_ticks <= 1800 then
+            ra_hours = (lst - ( 6 - ha_hours ))
+            if ra_hours < 0 then
+                ra_hours = ra_hours + 24
+            end if
+        else
+            ra_hours = (lst + ( ha_hours - 6))
+            if ra_hours >= 24 then
+                ra_hours = ra_hours - 24
+            end if
+        end if
+
+        ' Calcullated corrections, by Shay Kaspi
+        dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
+        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-01:12:00")
+
+        ra_hours = ra_hours + ra_correction
+        dec_degrees = dec_degrees + dec_correction
+
+
+        '
+        ' Sync the FS2 with the correct coordinates
+        '
+        dim msg
+        acp_tele.SyncToCoordinates ra_hours, dec_degrees
+        msg = "RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", ":")
+        wise_util.info label & msg
+
+    end sub
+
+    '--------------------------------------------------------------------
+    ' ACP calls IsSafe every 10 seconds,
+    '   IsSafe calls WiseIsSafe,
+    '       WiseIsSafe:
+    '           Checks safety and returns the same value for one minute
+    '           Once a minute it calls wise_tele.check_limits
+    '
+    ' if the telescope's altitude is less than the alt_limit
+    '  it is sent (asynchronously) to the pre-defined parking coordinates
+    '--------------------------------------------------------------------
+    sub check_limits()
+        dim response
+        dim label : label = wise_util.mklabel("Limits")
+        dim err_no, err_desc
+        dim elapsed, max_seconds
+
+        if not obs = "c28"  then _
+            exit sub
+
+        if not dli.has_power("Telescope") then
+            wise_util.trace "[I] " & label & "The telescope is powered OFF"
+            exit sub
+        end if
+
+        dim msg : msg = "[I] " & label & "Telescope at "
+        if not acp_util.telescopeconnected then
+            acp_util.telescopeconnected = true
+        end if
+
+        if parking then
+            if not acp_tele.slewing then
+                ' We were parking and the telescope stopped Slewing => The slew ended
+                wise_util.trace msg & "finished parking at (" & _
+                    acp_util.hours_hms(acp_tele.rightascension) & ", " & _
+                    acp_util.degrees_DMS(acp_tele.declination, ":", ":", "") & _
+                    ")"
+                parking = False
+            end if
+            exit sub     'guard against being called while the telescope is still parking
+        end if
+
+        if acp_tele.rightascension < 0.001 and acp_tele.declination < 0.01 then
+            sync_to_absolute_encoders
+        end if
+
+        msg  = msg & _
+            "["  & acp_util.hours_hms(acp_tele.rightascension) & ", " & acp_util.degrees_DMS(acp_tele.declination, ":", ":", "") & "], " & _
+            "(alt: " & acp_util.degrees_DM(acp_tele.altitude, ":", "") & ", " & "lim: " & acp_util.degrees_DM(alt_limit, ":", "") & ") "
+
+        if acp_tele.altitude > alt_limit then
+            wise_util.trace msg & ", above limit"
+            exit sub
+        end if
+
+        wise_util.trace msg & ", under limit"
+
+        dim parking_ra : parking_ra = acp_util.NowLST() - parking_ha
+        wise_util.trace label & "Sending telescope to parking position (" & _
+            acp_util.hours_hms(parking_ra) & ", " & _
+            acp_util.degrees_dms(parking_dec, ":", ":", "") & _
+            ")"
+
+        if acp_tele.slewing then
+            acp_tele.abortslew      ' abort any ongoing slew
+            wise_util.sleep 2
+        end if
+
+        parking = true
+        ' A synchronous slew would be risky, ACP calls us every minute and the parking may take longer
+        acp_tele.slewtocoordinatesasync parking_ra, parking_dec 
+        const interval = 1
+        max_seconds = 10
+        start_time = timer
+        elapsed = 0
+        while not acp_tele.slewing and elapsed < max_seconds
+            wise_util.trace label & "Waiting " & interval & " seconds for the telescope to start slewing ..."
+            wise_util.sleep interval
+            elapsed = int(timer - start_time)
+        wend
+
+        if not acp_tele.slewing then
+            wise_util.trace label & "[W] The telescope did not start slewing within " & elapsed & " seconds!"
+        end if
+
+    end sub
+
+    function get_alt_limit
+        get_alt_limit = acp_util.profile.getvalue(main_key, alt_limit_subkey, 15)
+    end function
+
+    sub put_alt_limit(value)
+        acp_util.profile.writevalue main_key, value, alt_limit_subkey
+    end sub
+
+
+    function get_parking_ha
+        get_parking_ha = acp_util.profile.getvalue(main_key, park_ha_subkey, 0)
+    end function
+
+    sub put_parking_ha(value)
+        acp_util.profile.writevalue main_key, value, park_ha_subkey
+    end sub
+
+
+    function get_parking_dec
+        dim def
+
+        if obs = "wise40" then
+            def = 66.0
+        else
+            def = 45.0
+        end if
+        get_parking_dec = acp_util.profile.getvalue(main_key, park_dec_subkey, def)
+    end function
+
+    sub put_parking_dec(value)
+        acp_util.profile.writevalue main_key, value, park_dec_subkey
+    end sub
+
+        ]]>
+        </script>
+    </component>
+</package>

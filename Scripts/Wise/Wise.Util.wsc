@@ -28,7 +28,7 @@
     ]]>
     </comment>
     <component>
-        <?component error="false" debug="false" ?>
+        <?component error="true" debug="false" ?>
         <registration
             progid="Wise.Util" 
             classid="{d778ffb5-8909-49d4-9782-890ee191799c}" 
@@ -62,17 +62,12 @@
                 <parameter name="Device"/>
                 <parameter name="TimeoutSeconds"/>
             </method>
-            <property name="scriptname">
-                <get/>
-                <set/>
-            </property>
             <property name="observatory">
                 <get/>
             </property>
             <property name="prog">
                 <get/>
             </property>
-            <method name="sync_telescope_to_absolute_encoders"/>
             <method name="mklabel">
                 <parameter name="label"/>
             </method>
@@ -87,17 +82,23 @@
     <![CDATA[
 
     dim fso       : set fso = createobject("Scripting.FileSystemObject")
-    dim stdout    : set stdout = fso.GetStandardStream(1)
     dim acp_util  : set acp_util = createobject("ACP.Util")
-    dim prog_file : set prog_file = fso.getfile(acp_util.console.script)
-    dim prog_name : prog_name = prog_file.name
 
-    dim trace_file, trace_stream, trace_prevdate
-    set trace_stream = nothing
+    dim prog_file, prog_name
 
-    trace "==="
-    trace "=== Script " & prog_file.path &  " started"
-    trace "==="
+    if not isobject(acp_util.console.script) then
+        prog_name = "WiseWeather"
+        prog_path = "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\" & prog_name & ".wsc"
+    else
+        if fso is nothing then
+            prog_path = "unknown prog path"
+            prog_name = "unknown"
+        else
+            set prog_file = fso.getfile(acp_util.console.script)
+            prog_path = prog_file.path
+            prog_name = prog_file.name
+        end if
+    end if
 
     '
     ' Outputs a message
@@ -117,7 +118,7 @@
     ' Outputs a message and terminates the current script
     '
     sub fatal(msg)
-        say "[FATAL] " & msg
+        say "[F] " & msg
         err.clear
         acp_util.AbortScript
     end sub
@@ -126,14 +127,14 @@
     ' Outputs a warning message
     '
     sub warning(msg)
-        say "[WARNING] " & msg
+        say "[W] " & msg
     end sub
 
     '
     ' Outputs an information message
     '
     sub info(msg)
-        say msg
+        say "[I] " & msg
     end sub
 
     '
@@ -147,37 +148,50 @@
     ' Write a trace line to this script's trace file
     '
     sub trace(message)
-        dim       utc : utc = acp_util.SysUTCDate
-        dim this_date : this_date = acp_util.FormatVar(utc, "yyyymmdd")
+        dim utc    : utc = acp_util.SysUTCDate
+        dim stream : set stream = nothing
+        dim today, file, folder, timestamp
 
-        if isempty(trace_prevdate) then
-            trace_prevdate = this_date
-        elseif not trace_prevdate = this_date then
-            if not trace_stream is nothing then
-                trace_stream = nothing
-            end if
-            trace_prevdate = this_date
+        if datepart("h", utc) < 12 then
+            utc = dateadd("d", -1, utc)
         end if
+        today = acp_util.FormatVar(utc, "yyyymmdd")
 
-        dim folder, timestamp
-
-        folder = acp_util.Prefs.LocalUser.DefaultLogDir & "\" &  this_date
+        folder = acp_util.Prefs.LocalUser.DefaultLogDir & "\" &  today
         if not fso.FolderExists(folder) then
             fso.CreateFolder(folder)
-            set trace_stream = nothing
         end if
 
-        timeStamp = acp_util.FormatVar(utc, "Hh:Nn:Ss") & " UT - "
-        trace_file = folder & "\" & prog_name & ".log"
-        on error resume next    ' if file is locked just give up
-        set trace_stream = fso.OpenTextFile(trace_file, 8, True) ' 8 = ForAppending
+        timestamp = acp_util.FormatVar(utc, "Hh:Nn:Ss") & " UT - "
+        file = folder & "\" & prog_name & ".log"
+
+        dim file_info
+        dim new_file : new_file = false
+        on error resume next
+        set file_info = fso.getfile(file)
         if err.number <> 0 then
-            info "trace: " & err.description
+            new_file = true
+        end if
+        on error goto 0
+
+        on error resume next    ' if file is locked just give up
+        set stream = fso.OpenTextFile(file, 8, True) ' 8 = ForAppending
+        if err.number <> 0 then
             exit sub
         end if
-        trace_stream.WriteLine timeStamp & message
-        trace_stream.close
-        trace_stream = nothing
+        on error goto 0
+
+        if new_file then
+            stream.writeline "==="
+            stream.writeline "=== Script " & prog_path
+            stream.writeline "==="
+        end if
+
+        if left(message, 1) <> "[" then
+            message = "[I] " & message
+        end if
+        stream.WriteLine timestamp & message
+        stream.close
     End Sub
 
     '
@@ -230,14 +244,6 @@
         set shell = nothing
     end function
 
-    function get_scriptname
-        get_prog = prog_name
-    end function
-
-    sub set_scriptname(value)
-        prog_name = value
-    end sub
-
     function get_observatory
         dim hostname : hostname = get_hostname
 
@@ -250,120 +256,12 @@
         end if
     end function
 
-    sub sync_telescope_to_absolute_encoders()
-        dim obs   : obs = get_observatory
-        dim label : label = mklabel("Encoders")
-
-        if not obs = "c28" then
-            exit sub
-        end if
-
-        dim reading, ha_reading, dec_reading, raw_reading
-        dim dec_ticks, dec_asecs, dec_degrees
-        dim ha_ticks, ha_asecs, ha_hours
-        dim ra_asecs, ra_hours
-
-        '
-        ' The absolute encoders are read via an USB interface, using an external 
-        '   utility (provided by the encoders' manufacturer) to read them
-        '
-        ' The output contains the declination and hour-angle readings, separated by a comma.
-        ' The first reading is for declination (index = 0), the second for hour-angle (index = 1)
-        ' Each encoder reading has the format: index:value:status
-        '
-        ' Where:
-        '  - index:  0 for declination, 1 for hour-angle
-        '  - value:  an integer
-        '  - status: either NoError or something else
-        '
-        ' Example:    0:256:NoError,1:1024:NoError
-        '
-        dim sh   : set sh = createobject ("WScript.Shell")
-        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\A2Read\bin\Debug\A2Read.exe COM10 0 1 retry=15")
-        raw_reading = exec.stdout.ReadLine()
-        set sh = nothing
-        set exec = nothing
-
-        reading = split(raw_reading, ",")           ' split the output at the comma
-        if ubound(reading) <> 1 then                ' we should get two parts
-            fatal label & "Bad reading from absolute encoders (reading: " & raw_reading & ")"
-        end if
-
-        dec_reading = split(reading(0), ":")        ' split the first reading (declination) at collons
-        if ubound(dec_reading) <> 2 then            ' we should get three parts
-            fatal label & "Bad DEC absolute encoder reading: " & reading(0)
-        end if
-
-        ha_reading = split(reading(1), ":")         ' split the second reading (hour-angle) at collons
-        if ubound(ha_reading) <> 2 then             ' we should get three parts
-            fatal label & "Bad RA absolute encoder reading: " & reading(1)
-        end if
-
-        if not ha_reading(2) = "NoError" or not dec_reading(2) = "NoError" then
-            fatal label & "Error(s) from absolute encoders: " & raw_reading
-        end if
-
-        dec_ticks = dec_reading(1)
-        ha_ticks = ha_reading(1)
-
-        '
-        ' Convert encoder ticks to coordinates
-        '
-        const asec_per_tick = 175.04                     ' number of arc seconds per encoder tick
-        dim zero_alt_asecs                               ' declination at 0 altitude South, negative value, in seconds
-        dim asec_in_90_deg
-
-        zero_alt_asecs = ( 30.596744 - 90 ) * 3600       ' declination at 0 altitude South, negative value, in seconds
-        asec_in_90_deg = ( 90 * 3600 )
-
-        dec_asecs = zero_alt_asecs  + ((dec_ticks + 51.01) * asec_per_tick)
-
-        if dec_asecs >= asec_in_90_deg then
-            dec_asecs = asec_in_90_deg - ( dec_asecs - asec_in_90_deg )
-        end if
-        dec_degrees = dec_asecs / 3600
-
-        ha_asecs = (ha_ticks + 51.01) * asec_per_tick   ' arc-seconds above horizon
-        ha_hours = (ha_asecs / 15) / 3600
-
-        dim lst : lst = acp_util.NowLST
-        if ha_ticks <= 1800 then
-            ra_hours = (lst - ( 6 - ha_hours ))
-            if ra_hours < 0 then
-                ra_hours = ra_hours + 24
-            end if
-        else
-            ra_hours = (lst + ( ha_hours - 6))
-            if ra_hours >= 24 then
-                ra_hours = ra_hours - 24
-            end if
-        end if
-
-        ' Calcullated corrections, by Shay Kaspi
-        dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
-        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-01:12:00")
-
-        ra_hours = ra_hours + ra_correction
-        dec_degrees = dec_degrees + dec_correction
-
-
-        '
-        ' Sync the FS2 with the correct coordinates
-        '
-        dim msg
-        acp_util.scripttelescope.SyncToCoordinates ra_hours, dec_degrees
-        msg = "RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", ":")
-        info label & msg
-
-    end sub
-
     function get_prog
         get_prog = prog_name
     end function
 
     function mklabel(str)
-        const label_length = 10
-        mklabel = "=> " & str & ": "
+        mklabel = str & ": "
     end function
 
     sub run(message, command)

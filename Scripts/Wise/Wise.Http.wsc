@@ -2,6 +2,7 @@
 <package>
 	<comment>
     <![CDATA[
+    'vim:se sts=4 sw=4 ts=4 expandtab:
     'tabs=4
     -----------------------------------------------------------------------------------------
     Wise HTTP Utilities
@@ -65,7 +66,7 @@
 
     <![CDATA[
 
-    dim wutil : set wutil = createobject("Wise.Util")
+    dim wise_util : set wise_util = createobject("Wise.Util")
 
     function get_url(url, user, password)
         get_url = request("GET", url, Null, user, password)
@@ -76,75 +77,79 @@
     end function
 
     function request(verb, url, data, user, password)
-        Dim server, response
+        dim server, response, err_no, err_desc
         const maxSeconds = 5
         
         set server = createobject("MSXML2.ServerXMLHTTP")
         server.setTimeouts 1000, 1000, 2000, 2000
 
+        on error resume next
         server.open verb, url, false, user, password
+        err_no = err.number
+        err_desc = err.description
+        on error goto 0
 
-        if 0 = Err.Number Then
+        if err_no = 0 Then
            server.setRequestHeader "Content-Type", "text/html"
 
-           Select Case verb
-            Case "GET"
+           on error resume next
+           select case verb
+            case "GET"
                 server.Send
-            Case "PUT"
+            case "PUT"
                 server.setRequestHeader "Content-Length", Len(data)
                 server.Send(data)
-           end Select
+           end select
+           err_no = err.number
+           err_desc = err.description
+           on error goto 0
 
-           Dim msg
+           dim msg
            msg = "Request: " & verb
-           if not IsEmpty(data) then
+           if not isempty(data) then
                msg = msg & " " & data
            end if
            msg = msg & " => "
 
-           Dim startTime
-           startTime = Timer
-           do while Err.Number = 0 and server.readyState <> 4
-                wutil.trace "Sleeping 100 millis ..."
-                Util.WaitForMilliseconds(100)
-                if Round(Timer - startTime) >= maxSeconds Then
-                    set server = Nothing
-                    request = "error:timedout after " & maxSeconds & " seconds"
-                    wutil.trace msg & request
-                    Exit function
-                end if
+           if err_no <> 0 then
+                set server = nothing
+                wise_util.trace msg & " error:" & err_desc
+                exit function
+           end if
+
+           dim starttime, elapsed
+           starttime = timer
+           elapsed = 0
+           do while server.readystate <> 4 and elapsed <= maxseconds
+                wise_util.trace "Sleeping 1 second ..."
+                wise_util.sleep 1
+                elapsed = round(timer - starttime)
            loop
-
-           if (Err.Number <> 0) Then
-                set server = Nothing
-                request = "error:#" & Err.Number & ", description: " & Err.Description & ", source: " & err.source
-                wutil.trace msg & request
-                Exit function
+           if elapsed > maxseconds then
+                set server = nothing
+                request = "error:timedout after " & elapsed & " seconds (readystate: " & server.readystate & ")"
+                wise_util.trace msg & request
+                exit function
            end if
 
-           if server.readyState = 4 then
-                if InStr(server.responseText, "ClientTransactionID") Then
-                    request = GetJSONValue(server.responseText)
-                else
-                    request = server.responseText
-                end if
-                wutil.trace msg & request
+           if instr(server.responsetext, "ClientTransactionID") then
+                request = getJSONvalue(server.responsetext)
            else
-                httprequest = "error:server.ReadyState " & server.ReadyState
-                wutil.trace msg & request
+                request = server.responsetext
            end if
+           'wise_util.trace msg & request ' Success
 
         end if
 
-        set server = Nothing
+        set server = nothing
         
     end function
 
-    function GetJSONValue(json)
+    function getJSONvalue(json)
         with createobject("ScriptControl")
             .Language = "JScript"
-            with .Eval("(" + json + ")")
-                GetJSONValue = .Value
+            with .eval("(" + json + ")")
+                getJSONvalue = .Value
             end with
         end with
     end function
