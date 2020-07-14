@@ -81,7 +81,6 @@
   <ItemGroup>
     <Content Include=".gitignore" />
     <Content Include="Scripts\ShutdownObs-Arie.vbs" />
-    <Content Include="Scripts\StartupObs-Arie.vbs" />
     <Content Include="Scripts\StartupObs.vbs" />
     <Content Include="Scripts\Wise\Wise.Ascom.wsc" />
     <Content Include="Scripts\Wise\Wise.Camera.wsc" />
