@@ -101,7 +101,7 @@
                 server.Send(data)
            end select
            err_no = err.number
-           err_desc = err.description
+           err_desc = replace(err.description, vbCrLf, "")
            on error goto 0
 
            dim msg
@@ -114,6 +114,7 @@
            if err_no <> 0 then
                 set server = nothing
                 wise_util.trace msg & " error:" & err_desc
+                request = "error:" & err_desc
                 exit function
            end if
 
