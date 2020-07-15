@@ -447,6 +447,10 @@ Edit History:
         MSToKnots = ms * 1.944
     end function
 
+    function knotstokmh(knots)
+        knotstokmh = knots * 1.852
+    end function
+
     '------------------------------------------------------------------------------
     ' Property WindVelocity (R/O, OPTIONAL)
     '
@@ -484,7 +488,7 @@ Edit History:
     end function
 
     function WiseIsSafe()
-        dim response, seconds, i, items
+        dim response, seconds, i, items, reasons
                 
         seconds = datediff("s", lastIsSafeQueryTime, Now)
         if (seconds < 60) Then
@@ -493,16 +497,40 @@ Edit History:
         end if
 
         response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-issafe&Parameters=")
+        'wise_util.trace "[I] remote wise-issafe response '" & response & "', is_success: " & is_success(response) 
 
         if not is_success(response) Then
             'wise_util.trace "[W] remote wise-issafe response '" & response & "'"
             if use_local_station Then
-                WiseIsSafe = _
-                    ClarityII.HumidityPercent <= 85.0 And _
-                    NormalizedClarityIIWind(ClarityII.Wind) <= 40.0 And _
-                    ClarityII.SkyCond = skyClear And _
-                    ClarityII.SecondsSinceGoodData < 60
-                wise_util.trace "[I] local station is reliable => wiseissafe = " & wiseissafe
+                dim wind_ok, day_ok, humidity_ok, clouds_ok, data_ok
+
+                if obs = "c28" then
+                    wind_ok = true     ' the wind sensor at the c28 is crazy
+                else
+                    wind_ok = knotstokmh(get_WindVelocity)   <= 45.0
+                end if
+                day_ok      = ClarityII.DayCondition          = dayDark
+                humidity_ok = ClarityII.HumidityPercent      <= 85.0
+                clouds_ok   = ClarityII.CloudCondition        = skyClear
+                data_ok     = ClarityII.SecondsSinceGoodData <  60
+
+                WiseIsSafe = day_ok and humidity_ok and wind_ok and clouds_ok and data_ok
+                if not day_ok then _
+                    reasons = reasons & "'not dark' "
+                if not humidity_ok then _
+                    reasons = reasons & "'humidity above 85%' "
+                if not wind_ok then _
+                    reasons = reasons & "'wind above 45 Kmh' "
+                if not clouds_ok then _
+                    reasons = reasons & "'cloudy' "
+                if not data_ok then _
+                    reasons = reasons & "'data older than 60 seconds' "
+                reasons = rtrim(reasons)
+
+                dim msg : msg = "[I] local station is reliable => wiseissafe = " & wiseissafe
+                if not wiseissafe then _
+                    msg = msg & " (reasons: " & reasons & ")"
+                wise_util.trace msg
             else
                 WiseIsSafe = False
                 wise_util.trace "[I] local station is not reliable => wiseissafe = " & wiseissafe
@@ -513,7 +541,7 @@ Edit History:
             response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
             if response <> lastUnsafeReasons Then
                 lastUnsafeReasons = response
-                dim reasons : reasons = unsafereasons2array(response)
+                reasons = unsafereasons2array(response)
 
                 if (instr(response, "HumanIntervention")) then
                     for i = 1 to ubound(reasons) - 1
