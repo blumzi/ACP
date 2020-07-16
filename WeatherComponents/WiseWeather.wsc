@@ -384,13 +384,6 @@ Edit History:
 
         if not get_Safe And lastSafe Then                ' if this is a change from safe to unsafe
             wise_util.warning("Safety: Wise became unsafe to operate!")
-            dim response : response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
-
-            dim reasons, i
-            reasons = unsafereasons2array(response)
-            for i = 0 to ubound(reasons) - 1
-                wise_util.trace "Safety: unsafereason: " & reasons(i)
-            next
         elseif get_safe and not lastSafe Then
             wise_util.info("Safety: Wise became safe to operate!")
         end if
@@ -503,6 +496,7 @@ Edit History:
             'wise_util.trace "[W] remote wise-issafe response '" & response & "'"
             if use_local_station Then
                 dim wind_ok, day_ok, humidity_ok, clouds_ok, data_ok
+                dim msg : msg = "Safety (from " & obs & ") => "
 
                 if obs = "c28" then
                     wind_ok = true     ' the wind sensor at the c28 is crazy
@@ -515,25 +509,28 @@ Edit History:
                 data_ok     = ClarityII.SecondsSinceGoodData <  60
 
                 WiseIsSafe = day_ok and humidity_ok and wind_ok and clouds_ok and data_ok
-                if not day_ok then _
-                    reasons = reasons & "'not dark' "
-                if not humidity_ok then _
-                    reasons = reasons & "'humidity above 85%' "
-                if not wind_ok then _
-                    reasons = reasons & "'wind above 45 Kmh' "
-                if not clouds_ok then _
-                    reasons = reasons & "'cloudy' "
-                if not data_ok then _
-                    reasons = reasons & "'data older than 60 seconds' "
-                reasons = rtrim(reasons)
+                if wiseissafe then
+                    msg = "[I] " & msg & "safe"
+                else
+                    if not day_ok then _
+                        reasons = reasons & "'not dark' "
+                    if not humidity_ok then _
+                        reasons = reasons & "'humidity above 85%' "
+                    if not wind_ok then _
+                        reasons = reasons & "'wind above 45 Kmh' "
+                    if not clouds_ok then _
+                        reasons = reasons & "'cloudy' "
+                    if not data_ok then _
+                        reasons = reasons & "'data older than 60 seconds' "
+                    reasons = rtrim(reasons)
 
-                dim msg : msg = "[I] local station is reliable => wiseissafe = " & wiseissafe
-                if not wiseissafe then _
-                    msg = msg & " (reasons: " & reasons & ")"
+                    if not wiseissafe then _
+                        msg = "[W] " & msg & "not-safe (reasons: " & reasons & ")"
+                end if
                 wise_util.trace msg
             else
                 WiseIsSafe = False
-                wise_util.trace "[I] local station is not reliable => wiseissafe = " & wiseissafe
+                wise_util.trace "[W] Safety: (from " & obs & " (local station is not reliable) => not-safe"
             end if
         elseif (response = "false") Then
             WiseIsSafe = False
@@ -545,17 +542,17 @@ Edit History:
 
                 if (instr(response, "HumanIntervention")) then
                     for i = 1 to ubound(reasons) - 1
-                        wise_util.trace("Safety: HumanIntervention: " & reasons(i))
+                        wise_util.trace("[W] Safety: (from wise40) not-safe HumanIntervention: " & reasons(i))
                     next
                 else
                     for i = 0 to ubound(reasons) - 1
-                        wise_util.trace("Safety: unsafereason: " & reasons(i))
+                        wise_util.trace("[W] Safety: (from wise40) not-safe unsafereason: " & reasons(i))
                     next
                 end if
             end if
         elseif (response = "true") Then
-            'wise_util.trace "[I] remote wise-issafe response: " & response & " => wiseissafe = " & wiseissafe
             WiseIsSafe = True
+            'wise_util.trace "[I] (from wise40) safe"
         end if
         
         lastIsSafeQueryTime = Now
