@@ -2,11 +2,11 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Wise components for ACP"
-#define MyAppVersion "1.5"
+#define MyAppVersion "1.0"
 #define MyAppPublisher "Wise Observatory Software"
-#define MyAppExeName "MyProg.exe"
 #define Top "c:\Program Files (x86)\ACP Obs Control"
-#define WeatherComponents "{Top}\WeatherComponents"
+#define WeatherComponents "{{#Top}}\WeatherComponents"
+#define Scripts "{{#Top}}\Scripts\Wise"
 #define Src "C:\Users\Blumzi\Source\Repos\ACP"
 
 [Setup]
@@ -30,31 +30,31 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#Src}\Scripts\Wise\*"; DestDir: "{#Top}\Scripts\Wise"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Src}\Scripts\Wise\*"; DestDir: "{#Scripts}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Src}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#Top}\WeatherComponents\WiseWeatherSetup"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Src}\WeatherComponents\WiseWeather.wsc"; DestDir: "{#Top}\WeatherComponents"; Flags: ignoreversion regserver 32bit
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Run]
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.ASCOM.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.Camera.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.DliPowerSwitch.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.Dome.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\WeatherComponents"; Flags: runascurrentuser; Parameters: "/s WiseWeather.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#Top}\WeatherComponents\WiseWeatherSetup"; Parameters: "/s WiseWeatherSetup.dll"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.ASCOM.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Camera.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.DliPowerSwitch.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Dome.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#WeatherComponents}"; Flags: runascurrentuser; Parameters: "/s WiseWeather.wsc"
+Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherComponents}\WiseWeatherSetup"; Parameters: "/s WiseWeatherSetup.dll"
 
 [UninstallRun]
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.Camera.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.DliPowerSwitch.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.Dome.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\Scripts\Wise"; Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}\WeatherComponents"; Flags: runascurrentuser; Parameters: "/s /uWiseWeather.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#Top}\WeatherComponents\WiseWeatherSetup"; Parameters: "/s /unregister WiseWeatherSetup.dll"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Camera.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.DliPowerSwitch.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Dome.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#WeatherComponents}"; Flags: runascurrentuser; Parameters: "/s /uWiseWeather.wsc"
+Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherComponents}\WiseWeatherSetup"; Parameters: "/s /unregister WiseWeatherSetup.dll"
 
 
