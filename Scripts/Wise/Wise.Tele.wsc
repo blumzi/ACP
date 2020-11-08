@@ -40,6 +40,10 @@
             <method name="startup"/>
             <method name="sync_to_absolute_encoders"/>
             <method name="check_limits"/>
+            <property name="monitoring">
+                <get />
+                <put />
+            </property>
             <property name="parking_ha">
                 <get/>
                 <put/>
@@ -66,6 +70,7 @@
     dim was_connected : was_connected = false
 
     dim parking     : parking     = false
+    dim monitoring  : monitoring = false
     dim parking_ha  : parking_ha  = cdbl(get_parking_ha)
     dim parking_dec : parking_dec = cdbl(get_parking_dec)
     dim alt_limit   : alt_limit   = cdbl(get_alt_limit)
@@ -252,7 +257,7 @@
         dim err_no, err_desc
         dim elapsed, max_seconds
 
-        if not obs = "c28"  then _
+        if not monitoring  then _
             exit sub
 
         if not dli.has_power("Telescope") then
@@ -339,7 +344,6 @@
         acp_util.profile.writevalue main_key, value, park_ha_subkey
     end sub
 
-
     function get_parking_dec
         dim def
 
@@ -353,6 +357,14 @@
 
     sub put_parking_dec(value)
         acp_util.profile.writevalue main_key, value, park_dec_subkey
+    end sub
+
+    function get_monitoring
+        get_monitoring = monitoring
+    end function
+
+    sub put_monitoring(value)
+        monitoring = value
     end sub
 
         ]]>

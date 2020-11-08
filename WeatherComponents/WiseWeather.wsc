@@ -89,7 +89,6 @@ Edit History:
 
     Option Explicit
 
-    const SVR_VERSION = "1.0.0"
     const PROG = "WiseWeather"
     const ERR_SOURCE = "ACP.WiseWeather"
     const PRP = "Property "				' Common bits for error messages
@@ -129,7 +128,7 @@ Edit History:
     dim connected                 : connected = false
     dim lastIsSafeQueryTime       : lastIsSafeQueryTime = cdate(now - #00:01:00#)
     dim lastSafe                  : lastSafe = true
-    dim local_station_is_reliable : local_station_is_reliable = false	' Should be set to True if the Boltwood station provides reliable data, to False otherwise
+    dim local_station_is_reliable : local_station_is_reliable = false
     dim lastUnsafeReasons         : lastUnsafeReasons = ""
     dim ClarityII                 : set ClarityII = Nothing
 
@@ -139,11 +138,7 @@ Edit History:
     dim wise_tele  : set wise_tele  = createobject("Wise.Tele")
     dim obs        : obs = wise_util.observatory
 
-    if lcase(acp_util.Profile.GetValue("WiseWeather", "LocalStationIsReliable", "False")) = "true" Then
-        local_station_is_reliable = true
-    else
-        local_station_is_reliable = false
-    end if
+    load_settings   ' loads the settings JSON file
 
     if local_station_is_reliable and ClarityII is Nothing Then
         Set ClarityII = CreateObject("ClarityII.CloudSensorII")
@@ -155,52 +150,12 @@ Edit History:
     ' Parameters:   (none)
     ' Returns:      (nothing)
     '
-    ' Invokes the weather access setup dialog. I put in a file selection dialog,
-    ' courtesy of ACP's Util object which you have use of automatically here.
+    ' Invokes the weather access setup dialog.
     '------------------------------------------------------------------------------
     sub SetupDialog()
-        dim response
+        dim form : set form=createobject("WiseWeatherSetup.Form")
 
-        response = InputBox("The Wise server's IP address", "Server address", wise_ascom.server)
-        if not isempty(response) then
-            wise_ascom.server = response
-        end if
-
-        response = InputBox("The Wise server's IP port", "Server port", wise_ascom.port)
-        if not isempty(response) then
-            wise_ascom.port = response
-        end if	
-
-        local_station_is_reliable = acp_util.profile.getvalue("WiseWeather", "LocalStationIsReliable")
-        dim default_button
-        if local_station_is_reliable then
-            default_button = vbDefaultButton1
-        else
-            default_button = vbDefaultButton2
-        end if
-        response = MsgBox("Is the local weather station reliable?", vbYesNo + default_button)
-        if response = vbYes Then
-            local_station_is_reliable = True
-        else
-            local_station_is_reliable = False
-        end if
-        acp_util.Profile.WriteValue "WiseWeather", local_station_is_reliable, "LocalStationIsReliable"
-
-        response = InputBox("Telescope altitude limit", "Alt limit (degrees):", wise_tele.alt_limit)
-        if response <> "" Then
-            wise_tele.alt_limit = response
-        end if
-
-        response = InputBox("Telescope parking HourAngle", "HourAngle (hours):", wise_tele.parking_ha)
-        if response <> "" Then
-            wise_tele.parking_ha = response
-        end if
-
-        response = InputBox("Telescope parking Declination", "Declination (degrees):", wise_tele.parking_dec)
-        if response <> "" Then
-            wise_tele.parking_dec = response
-        end if
-
+        form.show
     end sub
 
     function is_success(s)
@@ -592,6 +547,41 @@ Edit History:
         'next
     end function
 
+    sub load_settings()
+        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WeatherComponents\WiseWeather.json"
+        dim f, json
+
+        on error resume next
+        set f = fso.OpenTextFile(jsonFile, 1)
+        json = f.readall
+        f.close
+        f = nothing        
+
+        if (err.number = 0) then
+            with createobject("ScriptControl")
+                .Language = "JScript"
+                With .Eval("(" + json + ")")
+                    wise_ascom.server = .Server.Address
+                    wise_ascom.port = .Server.Port
+                    wise_tele.monitoring = .Monitoring.Enabled
+                    wise_tele.alt_limit = .Monitoring.AltLimit
+                    wise_tele.parking_ha = .Monitoring.HourAngle
+                    wise_tele.parking_dec = .Monitoring.Declination
+                    local_station_is_reliable = .Reliable
+                end with
+            end with
+        else
+            err.Clear
+            wise_ascom.server = "132.66.65.9"
+            wise_ascom.port = 11111
+            wise_tele.monitoring = false
+            wise_tele.alt_limit = 0.0
+            wise_tele.parking_ha = 0.0
+            wise_tele.parking_dec = 0.0
+            local_station_is_reliable = false
+        end if
+        on error goto 0
+    End Sub 
 
 ]]>
 		</script>
