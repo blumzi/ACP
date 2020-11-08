@@ -8,6 +8,7 @@
 #define WeatherComponents "{{#Top}}\WeatherComponents"
 #define Scripts "{{#Top}}\Scripts\Wise"
 #define Src "C:\Users\Blumzi\Source\Repos\ACP"
+#define Scheduler "C:\Users\Public\Documents\ACP Config\Scheduler"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -30,9 +31,12 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#Src}\Scripts\Wise\*"; DestDir: "{#Scripts}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#Src}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#Top}\WeatherComponents\WiseWeatherSetup"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#Src}\WeatherComponents\WiseWeather.wsc"; DestDir: "{#Top}\WeatherComponents"; Flags: ignoreversion regserver 32bit
+Source: "{#Src}\Scripts\Wise\*";                                 DestDir: "{#Scripts}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Src}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherComponents}\WiseWeatherSetup"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Src}\WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponents}"; Flags: ignoreversion regserver 32bit
+Source: "{#Src}\Scripts\StartupObs-Arie.vbs";                    DestDir: "{#Scheduler}\StartupObs-Arie.vbs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Src}\Scripts\ShutdownObs-Arie.vbs";                   DestDir: "{#Scheduler}\StartupObs-Arie.vbs"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#Src}\UserActions-Arie.wsc";                           DestDir: "{#Top}\UserActions-Arie.wsc"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Run]
@@ -45,6 +49,7 @@ Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentus
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#WeatherComponents}"; Flags: runascurrentuser; Parameters: "/s WiseWeather.wsc"
 Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherComponents}\WiseWeatherSetup"; Parameters: "/s WiseWeatherSetup.dll"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}"; Flags: runascurrentuser; Parameters: "/s UserActions-Arie.wsc"
 
 [UninstallRun]
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
@@ -56,5 +61,6 @@ Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentus
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#WeatherComponents}"; Flags: runascurrentuser; Parameters: "/s /uWiseWeather.wsc"
 Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherComponents}\WiseWeatherSetup"; Parameters: "/s /unregister WiseWeatherSetup.dll"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}"; Flags: runascurrentuser; Parameters: "/s /u UserActions-Arie.wsc"
 
 

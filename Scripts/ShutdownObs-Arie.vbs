@@ -23,7 +23,7 @@
 '  "observatory" variable (which can be "c18", "c28" or "wise40"
 '
 
-dim wise_util       : set wise_util = createobject("Wise.Util")
+dim wise_util   : set wise_util = createobject("Wise.Util")
 dim acp_util    : set acp_util = createobject("ACP.Util")
 dim observatory : observatory = wise_util.observatory
 dim telescope   : set telescope = acp_util.ScriptTelescope				    ' Needed for parking/tracking
