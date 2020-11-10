@@ -218,10 +218,9 @@ sub telescope_park
         if not telescope.atpark then
             wise_util.info "Parking the telescope ..."
             telescope.park
-        end if
-
-        if not telescope.atpark then
-            wise_util.warning "Failed to park the telescope"
+            if not telescope.atpark then
+                wise_util.warning "Failed to park the telescope"
+            end if
         end if
     else
         ' This telescope cannot Park, we slew it to park position
