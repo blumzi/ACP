@@ -128,7 +128,7 @@ Edit History:
     dim connected                 : connected = false
     dim lastIsSafeQueryTime       : lastIsSafeQueryTime = cdate(now - #00:01:00#)
     dim lastSafe                  : lastSafe = true
-    dim local_station_is_reliable : local_station_is_reliable = false
+    dim weather_station_is_reliable : weather_station_is_reliable = false
     dim lastUnsafeReasons         : lastUnsafeReasons = ""
     dim ClarityII                 : set ClarityII = Nothing
 
@@ -138,9 +138,9 @@ Edit History:
     dim wise_tele  : set wise_tele  = createobject("Wise.Tele")
     dim obs        : obs = wise_util.observatory
 
-    load_settings   ' loads the settings JSON file
+    wise_util.load_settings
 
-    if local_station_is_reliable and ClarityII is Nothing Then
+    if weather_station_is_reliable and ClarityII is Nothing Then
         Set ClarityII = CreateObject("ClarityII.CloudSensorII")
     end if
 
@@ -178,7 +178,7 @@ Edit History:
 
         if newValue Then
             wise_util.trace " "
-            wise_util.trace "Connected (observatory: " & obs & ", local_station_is_reliable: " & local_station_is_reliable & ", use_local_station: " & use_local_station & ")"
+            wise_util.trace "Connected (observatory: " & obs & ", weather_station_is_reliable: " & weather_station_is_reliable & ", use_local_station: " & use_local_station & ")"
             wise_tele.check_limits
         else
             wise_util.trace "Disconnected"
@@ -186,7 +186,7 @@ Edit History:
     end function
 
     function use_local_station() 
-        use_local_station = local_station_is_reliable and not ClarityII is Nothing
+        use_local_station = weather_station_is_reliable and not ClarityII is Nothing
     end function
 
     '------------------------------------------------------------------------------
@@ -546,42 +546,6 @@ Edit History:
             'wise_util.trace "unsafereasons2array(" & i & ") '" & ret(i) & "'"
         'next
     end function
-
-    sub load_settings()
-        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WeatherComponents\WiseWeather.json"
-        dim f, json
-
-        on error resume next
-        set f = fso.OpenTextFile(jsonFile, 1)
-        json = f.readall
-        f.close
-        f = nothing        
-
-        if (err.number = 0) then
-            with createobject("ScriptControl")
-                .Language = "JScript"
-                With .Eval("(" + json + ")")
-                    wise_ascom.server = .Server.Address
-                    wise_ascom.port = .Server.Port
-                    wise_tele.monitoring = .Monitoring.Enabled
-                    wise_tele.alt_limit = .Monitoring.AltLimit
-                    wise_tele.parking_ha = .Monitoring.HourAngle
-                    wise_tele.parking_dec = .Monitoring.Declination
-                    local_station_is_reliable = .Reliable
-                end with
-            end with
-        else
-            err.Clear
-            wise_ascom.server = "132.66.65.9"
-            wise_ascom.port = 11111
-            wise_tele.monitoring = false
-            wise_tele.alt_limit = 0.0
-            wise_tele.parking_ha = 0.0
-            wise_tele.parking_dec = 0.0
-            local_station_is_reliable = false
-        end if
-        on error goto 0
-    End Sub 
 
 ]]>
 		</script>

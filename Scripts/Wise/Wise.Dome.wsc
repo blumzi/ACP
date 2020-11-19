@@ -39,6 +39,10 @@
         <public>
             <method name="startup"/>
             <method name="shutdown"/>
+            <property name="parking_az">
+                <get />
+                <put />
+            </property>
         </public>
 
         <script language="VBScript">
@@ -46,178 +50,193 @@
     <![CDATA[
 
     dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim wise_dli    : wise_dli = createobject("Wise.Dli")
     dim acp_util    : set acp_util = createobject("ACP.Util")
-    dim dli         : set dli = createobject("Wise.DliPowerSwitch")
     dim obs         : obs = wise_util.observatory
     dim label       : label = wise_util.mklabel("Dome")
-    dim parking_az, acp_dome, parking_tolerance
+    dim parking_az, acp_dome, parking_tolerance, dome
 
     select case obs
         case "c28"
             parking_az = 233
             parking_tolerance = 0.5
+            set dome = createobject("ASCOM.ScopeDomeUSBDome.DomeLS")
         case "c18"
             parking_az = 82
             parking_tolerance = 0.5
+            set dome = createobject("???")
         case "wise40"
             parking_az = 90
             parking_tolerance = 2
+            set dome = createobject("ASCOM.Wise40.Dome")
     end select
 
     set acp_dome = createobject("ACP.Dome")
 
+    ' ASCOM shutter states
     const shutterOpen = 0
     const shutterClosed = 1
     const shutterOpening = 2
     const shutterClosing = 3
     const shutterError = 4
 
+
     sub startup
+        select case obs
+            case "c28"
+                c28_startup
+            case "c18"
+                c18_startup
+            case "wise40"
+                wise40_startup
+        end select
+    end sub
 
-        if obs = "c18" or obs = "c28" then
-            if obs = "c28" then
-                ' The C28 dome needs power cycling
-                if dli.has_power("dome") then
-                    dli.power_off("dome")
-                    wise_util.sleep 2
-                end if
-                dli.power_on("dome")
-                wise_util.sleep 2
-            end if
+    sub c28_startup
+        ' The C28 dome needs power cycling
+        wise_dli.power_cycle("dome")
 
-            if not acp_dome.connected then
-                acp_dome.connected = true
-                wise_util.sleep 2
-            end if
-
-            '
-            ' If the dome azimuth is not near enough to the parking position the
-            '  C18 and C28 will not have power to the shutter
-            '
-            dim az : az = acp_dome.azimuth
-            if abs(az - parking_az) > parking_tolerance then
-                wise_util.info label & "azimuth (" & az & ") too far from parking az (" & parking_az & ") (tolerance: " & parking_tolerance & " deg)"
-                wise_util.info label & "slewing to " & parking_az & " ..."
-                acp_dome.slewtoaz parking_az
-                do
-                    wise_util.sleep 2
-                    wise_util.info label & "azimuth " & acp_dome.azimuth & " deg."
-                loop while acp_dome.slewing
-            else
-                wise_util.info label & "azimuth: " & az & " deg. (within " & parking_tolerance & " deg from parking az " & parking_az & ")"
-            end if
-
-            if obs = "c28" then
-                ' The C28 dome driver can check that the dome can talk to the shutter
-                if acp_dome.commandbool("Shutter_Link_Strength") then
-                    wise_util.info label & "shutter link is OK"
-                else
-                    wise_util.fatal label & "bad shutter link"
-                end if
-            end if
+        if not acp_dome.connected then
+            acp_dome.connected = true
+            wise_util.sleep 2
         end if
 
-        '
-        ' Even if we're at the parking azimuth the dome driver may still be AtPark
-        '
-        if atpark then
-            unpark
-        end if
+        c28_ensure_shutter_link
 
     end sub
 
+    '
+    ' Shutdown
+    '
     sub shutdown
-        park    ' must park before activating the shutter
-        'close_shutter
+            select case obs
+            case "c28"
+                c28_shutdown
 
-        if obs = "c18" or obs = "c28" then
-            if dli.has_power("dome") then
-                dli.power_off("dome")
-            end if
-        end if
+            case "c18"
+                c18_shutdown
 
-    end sub
-
-    sub open_shutter
-        const interval = 10
-        dim status
-
-        if acp_dome.shutterstatus = shutterOpen then
-            wise_util.info "shutter is open"
-            exit sub
-        end if
-
-        acp_dome.openshutter
-        dim start_opening : start_opening = timer
-        wise_util.info label & "started opening the shutter"
-
-        while true
-            wise_util.info label & " waiting " & interval & " seconds ..."
-            wise_util.sleep interval
-
-            status = acp_dome.shutterstatus
-            select case status
-                case "shutterOpen"
-                case shutterOpen
-                    wise_util.info label & "shutter is open"
-                    exit sub
-
-                case "shutterOpening"
-                case shutterOpening
-                    :
-
-                case else
-                    wise_fatal "invalid status: " & status
+            case "wise40"
+                wise40_shutdown
 
             end select
-
-            if (timer - start_opening) > max_seconds then
-                wise_fatal "shutter did not open in " & (timer - start_opening) & " seconds"
-            end if
-        wend
-
     end sub
 
-    sub close_shutter
+    sub c28_shutdown
+        if not wise_dli.has_power("dome") then
+            wise_util.info label & "Powering ON"
+            wise_dli.power_on("dome")
+            wise_util.sleep 5
+        end if
+
+        c28_ensure_shutter_link
+        get_shutter_to(shutterClosed)
+        wise_util.info label & "Powering OFF"
+        wise_dli.power_off("dome")
+    end sub
+
+    sub c28_ensure_shutter_link
+        dim link_strength = dome.commandstring("Shutter_Link_Strength")
+
+        if link_strength < 90 then
+            wise_util.info label & "Shutter link is too low (" & link_strength & "%)"
+
+            if abs(dome.azimuth - 233) < 5 then
+                c28_slewtoazimuth(dome.azimuth + 10)
+                c28_slewtoazimuth(233)
+            end if
+            
+            link_strength = dome.commandstring("Shutter_Link_Strength")
+            if link_strength < 90 then
+                wise_util.info label & "Cycling power"
+                dome = nothing
+                wise_dli.power_cycle("dome")
+                set dome = createobject("ASCOM.ScopeDomeUSBDome.DomeLS")
+                wise_util.sleep 2
+                link_strength = dome.commandstring("Shutter_Link_Strength")
+                if link_strength < 90 then
+                    wise_util.error label & "Cannot achieve good shutter link (now at " & link_strength & "%)"
+                    exit sub
+                end if
+            end if
+            wise_util.info label & "Shutter link at " & link_strength & "%"            
+        end if
+    end sub
+
+    sub c28_slewtoazimuth(az)
+        dim start = timer, elapsed = 0
         const max_seconds = 60
-        const interval = 10
-        dim status
 
-        if acp_dome.shutterstatus = shutterClosed then
-            wise_util.info label & "shutter is closed"
+        wise_util.info label & "Slewing to " & az & " degrees"
+        dome.slewtoazimuth(az)
+        while not dome.slewing
+            wise_util.sleep 2
+            elapsed = timer - start
+            if elapsed > max_seconds then
+                wise_util.error label & "Did not start slewing within " & elapsed & " seconds!"
+                exit sub
+            end if
+        wend
+
+        while dome.slewing
+            wise_util.sleep 2
+        wend
+
+        wise_util.info label & "Arrived to " & dome.azimuth & " degrees"
+    end sub
+
+    ' Do whatever needed to get the shutter to the specified state
+    sub get_shutter_to(target_state)
+        const interval = 10
+        const max_seconds = 60
+        dim state, start, elapsed
+
+        if dome.shutterstatus = target_state then
+            wise_util.info label & "Shutter state: " & shutter_status_str(target_state)
             exit sub
         end if
 
-        acp_dome.closeshutter
-        dim start_closing : start_closing = timer
-        wise_util.info label & "started closing the shutter"
+        start = timer
+        if target_state = shutterOpen then
+            wise_util.info label & "Started opening the shutter"
+            dome.openshutter
+        else if target_state = shutterClosed then
+            wise_util.info label & "Started closing the shutter"
+            dome.closeshutter
+        end if
 
         while true
             wise_util.info label & " waiting " & interval & " seconds ..."
             wise_util.sleep interval
 
-            status = acp_dome.shutterstatus
-            select case status
-                case "shutterClosed"
-                case shutterClosed
-                    wise_util.info label & "shutter is closed"
-                    exit sub
+            state = dome.shutterstatus
+            if state = target_state then
+                wise_util.info label & "Shutter state: " & shutter_status_str(state)
+                exit sub
+            end if
 
-                case "shutterclosing"
-                case shutterclosing
-                    :
-
-                case else
-                    wise_fatal "invalid status: " & status
-
-            end select
-
-            if (timer - start_closing) > max_seconds then
-                wise_fatal "shutter did not close in " & (timer - start_closing) & " seconds"
+            elapsed = timer - start_opening
+            if elapsed > max_seconds then
+                wise_fatal label & "Shutter did not reach the " & shutter_status_str(target_state) & " within " & elapsed & " seconds"
+                exit sub
             end if
         wend
-
     end sub
+
+    function shutter_status_str(status)
+        select case status
+            case shutterOpen
+                shutter_status_str = "open"
+            case shutterOpening
+                shutter_status_str = "opening"
+            case shutterClosed
+                shutter_status_str = "closed"
+            case shutterClosing
+                shutter_status_str = "closing"
+            case shutterError
+                shutter_status_str = "error"
+        end select
+    end function
 
     function atpark
         if acp_dome.canpark and acp_dome.atpark then
@@ -260,6 +279,14 @@
             acp_dome.unpark
             wise_util.info label & "unparked"
         end if
+    end sub
+
+    function get_parking_az
+        get_parking_az = parking_az
+    end function
+
+    sub put_parking_az(value)
+        parking_az = value
     end sub
 
     ]]>

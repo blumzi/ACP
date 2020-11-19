@@ -21,8 +21,8 @@ namespace WiseWeatherSetup
 {
     public partial class Form : System.Windows.Forms.Form
     {
-        private readonly string machine = Environment.MachineName;
-        private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WeatherComponents/WiseWeather.json";
+        private readonly string machine = Environment.MachineName.ToLower();
+        private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WiseSettings.json";
         private Settings settings;
         private string _serverStatus;
         private Color _serverStatusColor;
@@ -39,13 +39,30 @@ namespace WiseWeatherSetup
                     JsonSerializer serializer = new JsonSerializer();
                     settings = (Settings)serializer.Deserialize(sr, typeof(Settings));
                 }
-            } catch (Exception)
+            }
+            catch (Exception)
             {
+                double defaultDomeHome = 0;
+
+                switch (machine)
+                {
+                    case "c28-pc":
+                        defaultDomeHome = 233.0;
+                        break;
+                    case "c18-pc":
+                        defaultDomeHome = 82.0;
+                        break;
+                    case "dome-pc":
+                        defaultDomeHome = 90.0;
+                        break;
+                }
+
                 settings = new Settings()
                 {
                     Saved = DateTime.MinValue,
                     Server = new Server { Address = "dome-pc", Port = 11111, },
-                    Monitoring = new TelescopeMonitoring { Enabled = false, HourAngle = 0, Declination = 0 },
+                    Telescope = new Telescope { MonitoringEnabled = false, HourAngle = 0, Declination = 0 },
+                    Dome = new Dome { HomePosition = defaultDomeHome, },
                     Reliable = false,
                 };
             }
@@ -58,10 +75,11 @@ namespace WiseWeatherSetup
             textBoxServerPort.Text = Port.ToString();
             checkBoxLocalWeatherIsReliable.Checked = Reliable;
 
-            checkBoxMonitoringEnabled.Checked = settings.Monitoring.Enabled;
-            textBoxAltLimit.Text = ascomutil.DegreesToDMS(settings.Monitoring.AltLimit);
-            textBoxParkingHA.Text = ascomutil.DegreesToHMS(settings.Monitoring.HourAngle);
-            textBoxParkingDec.Text = ascomutil.DegreesToDMS(settings.Monitoring.Declination);
+            checkBoxMonitoringEnabled.Checked = settings.Telescope.MonitoringEnabled;
+            textBoxTeleAltLimit.Text = ascomutil.DegreesToDMS(settings.Telescope.AltLimit);
+            textBoxTeleParkingHA.Text = ascomutil.DegreesToHMS(settings.Telescope.HourAngle);
+            textBoxTeleParkingDec.Text = ascomutil.DegreesToDMS(settings.Telescope.Declination);
+            textBoxDomeHomePosition.Text = ascomutil.DegreesToDMS(settings.Dome.HomePosition);
             labelMachine.Text = machine;
         }
 
@@ -80,10 +98,11 @@ namespace WiseWeatherSetup
             settings.Server.Port = Convert.ToUInt16(textBoxServerPort.Text.Trim());
             settings.Reliable = checkBoxLocalWeatherIsReliable.Checked;
             settings.Saved = DateTime.Now;
-            settings.Monitoring.Enabled = checkBoxMonitoringEnabled.Checked;
-            settings.Monitoring.AltLimit = ascomutil.DMSToDegrees(textBoxAltLimit.Text);
-            settings.Monitoring.HourAngle = ascomutil.HMSToDegrees(textBoxParkingHA.Text);
-            settings.Monitoring.Declination = ascomutil.DMSToDegrees(textBoxParkingDec.Text);
+            settings.Telescope.MonitoringEnabled = checkBoxMonitoringEnabled.Checked;
+            settings.Telescope.AltLimit = ascomutil.DMSToDegrees(textBoxTeleAltLimit.Text);
+            settings.Telescope.HourAngle = ascomutil.HMSToDegrees(textBoxTeleParkingHA.Text);
+            settings.Telescope.Declination = ascomutil.DMSToDegrees(textBoxTeleParkingDec.Text);
+            settings.Dome.HomePosition = ascomutil.DMSToDegrees(textBoxDomeHomePosition.Text);
 
             File.WriteAllText(settingsFile, JsonConvert.SerializeObject(settings));
             Close();
@@ -169,11 +188,16 @@ namespace WiseWeatherSetup
         public ushort Port;
     };
 
-    public class TelescopeMonitoring
+    public class Telescope
     {
-        public bool Enabled;
+        public bool MonitoringEnabled;
         public double AltLimit;
         public double HourAngle, Declination;
+    }
+
+    public class Dome
+    {
+        public double HomePosition;
     }
 
     public class Settings
@@ -181,6 +205,7 @@ namespace WiseWeatherSetup
         public DateTime Saved;
         public Server Server;
         public bool Reliable;
-        public TelescopeMonitoring Monitoring;
+        public Telescope Telescope;
+        public Dome Dome;
     }
 }

@@ -7,7 +7,7 @@
     A wrapper to simplify the access to an ASCOM.DigitalLoggers.Switch object
     ==================================================
 
-    Script:         Wise.DliPowerSwitch.wsc
+    Script:         Wise.Dli.wsc
     Author:         Arie Blumenzweig <theblumz@gmail.com>
     Version:        1.0
     Requires:       Windows Script 5.6 or later (installed by ACP setup)
@@ -30,7 +30,7 @@
 	<component>
 		<?component error="true" debug="false" ?>
 		<registration
-            progid="Wise.DliPowerSwitch" 
+            progid="Wise.Dli" 
             classid="{66B891D0-2081-4D95-911B-BB0470487330}" 
             description="A wrapper around the ASCOM.DigitalLoggers.Switch" 
             remotable="no" 
@@ -46,74 +46,90 @@
 			<method name="has_power">
                 <parameter name="PortName"/>
 			</method>
+			<method name="power_cycle">
+                <parameter name="PortName"/>
+			</method>
 		</public>
 
 		<script language="VBScript">
 
     <![CDATA[
 
-    dim port_names(), sw
-    dim wu   : set wu = createobject("Wise.Util")
-    dim label: label = wu.mklabel("Power")
+    dim port_names(), device
+    dim wise_util : set wise_util = createobject("Wise.Util")
+    dim label     : label = wise_util.mklabel("Power")
 
     init
 
-    sub init()
+    sub init
         'on error resume next
-        set sw = createobject("ASCOM.DigitalLoggers.Switch")
-        if not isobject(sw) then
-            fatal "Wise.DliPowerSwitch.init: cannot createobject(ASCOM.DigitalLoggers.Switch)"
+        dim obs : obs = wise_util.observatory
+
+        if obs = "c18" or obs = "c28" then
+            set device = createobject("ASCOM.DigitalLoggers.Switch")
+            if not isobject(device) then
+                fatal "Wise.Dli.init: cannot createobject(ASCOM.DigitalLoggers.Switch)"
+            end if
+        else
+            set device = nothing
+            exit sub
         end if
 
-        sw.Connected = true
-        redim port_names(sw.MaxSwitch)
-        'wu.debug ubound(port_names) & " port_names"
+        device.Connected = true
+        redim port_names(device.MaxSwitch)
         for i = 0 to ubound(port_names) - 1
-            port_names(i) = sw.GetSwitchName(i)
-            'wu.debug "port_names(" & i & "): " & port_names(i)
+            port_names(i) = device.GetSwitchName(i)
         next
     end sub
 
     sub power_on(port_name)
+        if isnull(device) then
+            exit sub
+        end if
+
         dim start_time, id
         const timeout = 20
 
         port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
 
         id = port_id(port_name)
-        sw.setswitch id, true
+        device.setswitch id, true
         start_time = timer()
-        do while not sw.getswitch(id) and (timer() - start_time) <= timeout
+        do while not device.getswitch(id) and (timer() - start_time) <= timeout
             sleep 1
         loop
 
-        if sw.getswitch(id) then
+        if device.getswitch(id) then
             dim elapsed : elapsed = int(timer() - start_time)
             dim msg     : msg = label & "powered '" & port_name & "' ON"
             if elapsed > 0 then
                 msg = msg & " in " & elapsed & " seconds"
             end if
-            wu.info msg
+            wise_util.info msg
         else
-            wu.fatal label & "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
+            wise_util.fatal label & "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
         end if
     end sub
 
     sub power_off(port_name)
+        if isnull(device) then
+            exit sub
+        end if
+
         dim start_time, id
         const timeout = 20
 
         port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
 
         id = port_id(port_name)
-        sw.setswitch id, false
+        device.setswitch id, false
         start_time = timer()
-        do while sw.getswitch(id) and (timer() - start_time) <= timeout
+        do while device.getswitch(id) and (timer() - start_time) <= timeout
             sleep 1
         loop
 
-        if sw.getswitch(id) then
-            wu.fatal label & "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
+        if device.getswitch(id) then
+            wise_util.fatal label & "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
         else
             dim elapsed : elapsed = int(timer - start_time)
             dim msg     : msg = label & "powered '" & port_name & "' OFF"
@@ -121,15 +137,33 @@
                 msg = msg & " in " & elapsed & " seconds"
                 
             end if
-            wu.info msg
+            wise_util.info msg
         end if
     end sub
 
     function has_power(port_name)
-        has_power = sw.getswitch(port_id(port_name))
+        if isnull(device) then
+            has_power = false
+            exit sub
+        end if
+
+        has_power = device.getswitch(port_id(port_name))
     end function
 
+    sub power_cycle(port_name)
+        if has_power(port_name) then
+            power_off(port_name)
+            wise_util.sleep 2
+        end if
+        power_on(port_name)
+        wise_util.sleep 2
+    end sub
+
     function port_id(port_name)
+        if isnull(device) then
+            exit sub
+        end if
+
         for i = 0 to ubound(port_names) - 1
             if lcase(port_names(i)) = lcase(port_name) then
                 port_id = i

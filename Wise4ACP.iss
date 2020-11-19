@@ -42,7 +42,7 @@ Source: "{#Src}\UserActions-Wise.wsc";                           DestDir: "{#Top
 [Run]
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.ASCOM.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Camera.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.DliPowerSwitch.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Dli.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Dome.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
@@ -54,7 +54,7 @@ Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Top}"; Flags: runascurrentuser; 
 [UninstallRun]
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Camera.wsc"
-Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.DliPowerSwitch.wsc"
+Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Dli.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Dome.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
 Filename: "{syswow64}\regsvr32"; WorkingDir: "{#Scripts}"; Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
