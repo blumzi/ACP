@@ -132,7 +132,7 @@
 
         if not acp_tele.connected then
             wise_util.connect_and_wait acp_tele, 30
-        fi
+        end if
 
         if acp_tele.slewing then
             acp_tele.abortslew
@@ -148,17 +148,17 @@
             end if
         else
             ' This telescope cannot Park, we slew it to park position
-            dim telescope_parking_ra = acp_util.NowLST
+            dim telescope_parking_ra : telescope_parking_ra = acp_util.NowLST
 
-            wise_util.info label & "Parking at " & util.HMS_Hours(telescope_parking_ra) & ", " util.DMS_Degrees(telescope_parking_dec)
+            wise_util.info label & "Parking at " & util.HMS_Hours(telescope_parking_ra) & ", " & util.DMS_Degrees(telescope_parking_dec)
             acp_tele.SlewToCoordinatesAsync telescope_parking_ra, telescope_parking_dec
             wise_util.sleep 2                   ' wait for start of slew
             while acp_tele.slewing
-                wise_util.info label & " at " & util.HMS_Hours(acp_tele.rightascension) & ", " util.DMS_Degrees(acp_tele.declination) & " ..."
+                wise_util.info label & " at " & util.HMS_Hours(acp_tele.rightascension) & ", " & util.DMS_Degrees(acp_tele.declination) & " ..."
                 wise_util.sleep 5
             wend
         end if
-        wise_util.info label & "Parked at " & util.HMS_Hours(telescope.rightascension) & ", " util.DMS_Degrees(telescope.declination)
+        wise_util.info label & "Parked at " & util.HMS_Hours(telescope.rightascension) & ", " & util.DMS_Degrees(telescope.declination)
 
         if acp_tele.Connected then
             acp_tele.Connected = False 'Disconnect it from ACP to force dome unslave

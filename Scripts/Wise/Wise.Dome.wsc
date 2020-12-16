@@ -136,7 +136,7 @@
     end sub
 
     sub c28_ensure_shutter_link
-        dim link_strength = dome.commandstring("Shutter_Link_Strength")
+        dim link_strength : link_strength = dome.commandstring("Shutter_Link_Strength")
 
         if link_strength < 90 then
             wise_util.info label & "Shutter link is too low (" & link_strength & "%)"
@@ -164,16 +164,17 @@
     end sub
 
     sub c28_slewtoazimuth(az)
-        dim start = timer, elapsed = 0
+        dim start_slew : start_slew = timer
+        dim elapsed    : elapsed = 0
         const max_seconds = 60
 
         wise_util.info label & "Slewing to " & az & " degrees"
         dome.slewtoazimuth(az)
         while not dome.slewing
             wise_util.sleep 2
-            elapsed = timer - start
+            elapsed = timer - start_slew
             if elapsed > max_seconds then
-                wise_util.error label & "Did not start slewing within " & elapsed & " seconds!"
+                wise_util.error label & "Did not start_slew slewing within " & elapsed & " seconds!"
                 exit sub
             end if
         wend
@@ -200,7 +201,7 @@
         if target_state = shutterOpen then
             wise_util.info label & "Started opening the shutter"
             dome.openshutter
-        else if target_state = shutterClosed then
+        elseif target_state = shutterClosed then
             wise_util.info label & "Started closing the shutter"
             dome.closeshutter
         end if

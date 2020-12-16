@@ -133,9 +133,8 @@
         else
             dim elapsed : elapsed = int(timer - start_time)
             dim msg     : msg = label & "powered '" & port_name & "' OFF"
-            if elapse > 0 then
-                msg = msg & " in " & elapsed & " seconds"
-                
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"                
             end if
             wise_util.info msg
         end if
@@ -144,10 +143,9 @@
     function has_power(port_name)
         if isnull(device) then
             has_power = false
-            exit sub
+        else
+            has_power = device.getswitch(port_id(port_name))
         end if
-
-        has_power = device.getswitch(port_id(port_name))
     end function
 
     sub power_cycle(port_name)
@@ -161,7 +159,7 @@
 
     function port_id(port_name)
         if isnull(device) then
-            exit sub
+            exit function
         end if
 
         for i = 0 to ubound(port_names) - 1
