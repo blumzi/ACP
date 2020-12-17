@@ -83,6 +83,8 @@ Edit History:
 			</property>
 		</public>
 
+        <object id="form" progid="WiseWeatherSetup.Form" events="false" reference="true"/>
+
 		<script id="WiseWeather" language="VBScript">
 
 <![CDATA[
@@ -153,7 +155,7 @@ Edit History:
     ' Invokes the weather access setup dialog.
     '------------------------------------------------------------------------------
     sub SetupDialog()
-        dim form : set form=createobject("WiseWeatherSetup.Form")
+        'dim form : set form=createobject("WiseWeatherSetup.Form")
 
         form.show
     end sub

@@ -64,7 +64,7 @@
     <![CDATA[
 
     dim wise_util : set wise_util = createobject("Wise.Util")
-    dim wise_dli  : set wise_util = createobject("Wise.Dli")
+    dim wise_dli  : set wise_dli = createobject("Wise.Dli")
     dim acp_util  : set acp_util = createobject("ACP.Util")
     dim obs       : obs = wise_util.observatory
     dim label     : label = wise_util.mklabel("Tele")

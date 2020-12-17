@@ -11,6 +11,9 @@
 #define SchedulerDest         "C:\Users\Public\Documents\ACP Config\Scheduler\"
 #define AcpSrc                "C:\Users\Blumzi\Source\Repos\ACP"
 
+#pragma option -v+
+#pragma verboselevel 9
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
@@ -48,7 +51,7 @@ Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: 
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s WiseWeatherSetup.dll"
+Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s /nologo WiseWeatherSetup.dll"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#WeatherComponentsDest}"; Flags: runascurrentuser; Parameters: "/s WiseWeather.wsc"
 
 [UninstallRun]
@@ -60,7 +63,7 @@ Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: 
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s /u WiseWeatherSetup.dll"
+Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s /u /nologo WiseWeatherSetup.dll"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#WeatherComponentsDest}"; Flags: runascurrentuser; Parameters: "/s /u WiseWeather.wsc"
 
 

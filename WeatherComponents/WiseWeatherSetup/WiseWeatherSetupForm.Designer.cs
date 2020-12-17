@@ -57,6 +57,7 @@ namespace WiseWeatherSetup
             this.label10 = new System.Windows.Forms.Label();
             this.textBoxDomeHomePosition = new System.Windows.Forms.TextBox();
             this.label9 = new System.Windows.Forms.Label();
+            this.label11 = new System.Windows.Forms.Label();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             this.groupBox3.SuspendLayout();
@@ -68,11 +69,12 @@ namespace WiseWeatherSetup
             | System.Windows.Forms.AnchorStyles.Right)));
             this.label1.AutoSize = true;
             this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label1.Location = new System.Drawing.Point(113, 25);
+            this.label1.Location = new System.Drawing.Point(65, 19);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(103, 20);
+            this.label1.Size = new System.Drawing.Size(195, 20);
             this.label1.TabIndex = 0;
-            this.label1.Text = "Wise for ACP";
+            this.label1.Text = "Wise components for ACP";
+            this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // groupBox1
             // 
@@ -82,17 +84,18 @@ namespace WiseWeatherSetup
             this.groupBox1.Controls.Add(this.textBoxServerAddress);
             this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.label2);
+            this.groupBox1.Controls.Add(this.checkBoxLocalWeatherIsReliable);
             this.groupBox1.ForeColor = System.Drawing.Color.DarkOrange;
-            this.groupBox1.Location = new System.Drawing.Point(12, 87);
+            this.groupBox1.Location = new System.Drawing.Point(12, 133);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(298, 126);
+            this.groupBox1.Size = new System.Drawing.Size(298, 168);
             this.groupBox1.TabIndex = 1;
             this.groupBox1.TabStop = false;
-            this.groupBox1.Text = " ASCOM Server ";
+            this.groupBox1.Text = " ASCOM SafeToOperate service ";
             // 
             // labelStatus
             // 
-            this.labelStatus.Location = new System.Drawing.Point(22, 92);
+            this.labelStatus.Location = new System.Drawing.Point(22, 128);
             this.labelStatus.Name = "labelStatus";
             this.labelStatus.Size = new System.Drawing.Size(249, 23);
             this.labelStatus.TabIndex = 5;
@@ -149,7 +152,7 @@ namespace WiseWeatherSetup
             // checkBoxLocalWeatherIsReliable
             // 
             this.checkBoxLocalWeatherIsReliable.AutoSize = true;
-            this.checkBoxLocalWeatherIsReliable.Location = new System.Drawing.Point(75, 221);
+            this.checkBoxLocalWeatherIsReliable.Location = new System.Drawing.Point(41, 95);
             this.checkBoxLocalWeatherIsReliable.Name = "checkBoxLocalWeatherIsReliable";
             this.checkBoxLocalWeatherIsReliable.Size = new System.Drawing.Size(192, 30);
             this.checkBoxLocalWeatherIsReliable.TabIndex = 2;
@@ -162,7 +165,7 @@ namespace WiseWeatherSetup
             this.buttonOk.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.buttonOk.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.buttonOk.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(176)))), ((int)(((byte)(161)))), ((int)(((byte)(142)))));
-            this.buttonOk.Location = new System.Drawing.Point(90, 424);
+            this.buttonOk.Location = new System.Drawing.Point(90, 470);
             this.buttonOk.Name = "buttonOk";
             this.buttonOk.Size = new System.Drawing.Size(71, 32);
             this.buttonOk.TabIndex = 5;
@@ -175,7 +178,7 @@ namespace WiseWeatherSetup
             this.buttonCancel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.buttonCancel.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.buttonCancel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(176)))), ((int)(((byte)(161)))), ((int)(((byte)(142)))));
-            this.buttonCancel.Location = new System.Drawing.Point(178, 424);
+            this.buttonCancel.Location = new System.Drawing.Point(178, 470);
             this.buttonCancel.Name = "buttonCancel";
             this.buttonCancel.Size = new System.Drawing.Size(71, 32);
             this.buttonCancel.TabIndex = 6;
@@ -186,19 +189,18 @@ namespace WiseWeatherSetup
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(113, 57);
+            this.label4.Location = new System.Drawing.Point(66, 101);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(51, 13);
+            this.label4.Size = new System.Drawing.Size(87, 13);
             this.label4.TabIndex = 7;
-            this.label4.Text = "Machine:";
+            this.label4.Text = "Current machine:";
             // 
             // labelMachine
             // 
-            this.labelMachine.AutoSize = true;
             this.labelMachine.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(176)))), ((int)(((byte)(161)))), ((int)(((byte)(142)))));
-            this.labelMachine.Location = new System.Drawing.Point(170, 57);
+            this.labelMachine.Location = new System.Drawing.Point(162, 101);
             this.labelMachine.Name = "labelMachine";
-            this.labelMachine.Size = new System.Drawing.Size(0, 13);
+            this.labelMachine.Size = new System.Drawing.Size(90, 13);
             this.labelMachine.TabIndex = 8;
             // 
             // groupBox2
@@ -212,12 +214,12 @@ namespace WiseWeatherSetup
             this.groupBox2.Controls.Add(this.label5);
             this.groupBox2.Controls.Add(this.checkBoxMonitoringEnabled);
             this.groupBox2.ForeColor = System.Drawing.Color.DarkOrange;
-            this.groupBox2.Location = new System.Drawing.Point(12, 261);
+            this.groupBox2.Location = new System.Drawing.Point(12, 307);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Size = new System.Drawing.Size(298, 84);
             this.groupBox2.TabIndex = 9;
             this.groupBox2.TabStop = false;
-            this.groupBox2.Text = "Telescope";
+            this.groupBox2.Text = "Telescope settings ";
             // 
             // label8
             // 
@@ -301,12 +303,12 @@ namespace WiseWeatherSetup
             this.groupBox3.Controls.Add(this.textBoxDomeHomePosition);
             this.groupBox3.Controls.Add(this.label9);
             this.groupBox3.ForeColor = System.Drawing.Color.DarkOrange;
-            this.groupBox3.Location = new System.Drawing.Point(12, 351);
+            this.groupBox3.Location = new System.Drawing.Point(12, 397);
             this.groupBox3.Name = "groupBox3";
             this.groupBox3.Size = new System.Drawing.Size(298, 53);
             this.groupBox3.TabIndex = 10;
             this.groupBox3.TabStop = false;
-            this.groupBox3.Text = " Dome ";
+            this.groupBox3.Text = " Dome settings ";
             // 
             // label10
             // 
@@ -335,12 +337,22 @@ namespace WiseWeatherSetup
             this.label9.TabIndex = 8;
             this.label9.Text = "Home:";
             // 
+            // label11
+            // 
+            this.label11.Location = new System.Drawing.Point(72, 39);
+            this.label11.Name = "label11";
+            this.label11.Size = new System.Drawing.Size(180, 42);
+            this.label11.TabIndex = 11;
+            this.label11.Text = "Configuration of some Wise-specific\r\ncomponents in ACP.";
+            this.label11.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
             // Form
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(26)))), ((int)(((byte)(22)))), ((int)(((byte)(16)))));
-            this.ClientSize = new System.Drawing.Size(328, 474);
+            this.ClientSize = new System.Drawing.Size(328, 522);
+            this.Controls.Add(this.label11);
             this.Controls.Add(this.groupBox3);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.groupBox1);
@@ -348,11 +360,10 @@ namespace WiseWeatherSetup
             this.Controls.Add(this.label4);
             this.Controls.Add(this.buttonCancel);
             this.Controls.Add(this.buttonOk);
-            this.Controls.Add(this.checkBoxLocalWeatherIsReliable);
             this.Controls.Add(this.label1);
             this.ForeColor = System.Drawing.Color.DarkOrange;
             this.Name = "Form";
-            this.Text = "WiseWeather Setup";
+            this.Text = "Wise4ACP Setup";
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
             this.groupBox2.ResumeLayout(false);
@@ -393,6 +404,7 @@ namespace WiseWeatherSetup
         private System.Windows.Forms.Label label10;
         private System.Windows.Forms.TextBox textBoxDomeHomePosition;
         private System.Windows.Forms.Label label9;
+        private System.Windows.Forms.Label label11;
     }
 }
 

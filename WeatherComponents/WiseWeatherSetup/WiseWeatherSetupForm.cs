@@ -23,10 +23,8 @@ namespace WiseWeatherSetup
     {
         private readonly string machine = Environment.MachineName.ToLower();
         private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WiseSettings.json";
-        private Settings settings;
-        private string _serverStatus;
-        private Color _serverStatusColor;
-        ASCOM.Utilities.Util ascomutil = new ASCOM.Utilities.Util();
+        private readonly   Settings settings;
+        readonly ASCOM.Utilities.Util ascomutil = new ASCOM.Utilities.Util();
 
         public Form()
         {
@@ -113,16 +111,14 @@ namespace WiseWeatherSetup
 
             if (string.IsNullOrWhiteSpace(textBoxServerAddress.Text))
             {
-                labelStatus.Text = "Null or empty Address";
-                labelStatus.ForeColor = Color.Red;
+                MessageBox.Show("Null or empty Address", "Bad setting", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             string server = textBoxServerAddress.Text;
 
             if (string.IsNullOrWhiteSpace(textBoxServerPort.Text))
             {
-                labelStatus.Text = "Null or empty Port";
-                labelStatus.ForeColor = Color.Red;
+                MessageBox.Show("Null or empty Port", "Bad setting", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             UInt16 port = Convert.ToUInt16(textBoxServerPort.Text);
@@ -134,7 +130,6 @@ namespace WiseWeatherSetup
             {
                 try
                 {
-                    labelStatus.Text = "Connecting ASCOM server";
                     DateTime start = DateTime.Now;
 
                     client.DownloadDataCompleted += new DownloadDataCompletedEventHandler(onDataDownloadCompletion);
@@ -145,16 +140,14 @@ namespace WiseWeatherSetup
                         if (DateTime.Now.Subtract(start).TotalMilliseconds > 500)
                         {
                             client.CancelAsync();
-                            labelStatus.Text = "Connection timedout.";
-                            labelStatus.ForeColor = Color.Red;
+                            MessageBox.Show("Connection timedout.", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             break;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    labelStatus.Text = $"Exception: {ex.Message}";
-                    labelStatus.ForeColor = Color.Red;
+                    MessageBox.Show($"Exception: {ex.Message}", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -163,22 +156,17 @@ namespace WiseWeatherSetup
         {
             if (e.Cancelled)
             {
-                _serverStatus = "timedout";
-                _serverStatusColor = Color.Red;
+                MessageBox.Show("Connection timedout.", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             else if (e.Error != null)
             {
-                _serverStatus = $"error: {e.Error}";
-                _serverStatusColor = Color.Red;
+                MessageBox.Show($"Error: {e.Error}", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             else
             {
                 string reply = ((byte[])e.Result).ToString();
-                _serverStatus = reply;
-                _serverStatusColor = Color.Green;
+                MessageBox.Show($"Reply: {reply}", "Communication success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            labelStatus.Text = $"Connection {_serverStatus}";
-            labelStatus.ForeColor = _serverStatusColor;
         }
     }
 
