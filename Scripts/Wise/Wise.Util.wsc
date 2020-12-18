@@ -295,7 +295,7 @@
                     wise_tele.parking_ha = .Telescope.HourAngle
                     wise_tele.parking_dec = .Telescope.Declination
                     wise_dome.parking_az = .Dome.HomePosition
-                    weather_station_is_reliable = .Reliable
+                    weather_station_is_reliable = .WeatherStationIsReliable
                 end with
             end with
         else

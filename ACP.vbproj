@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include=".gitignore" />
+    <Content Include="Scripts\FS2_Sync.vbs" />
     <Content Include="Scripts\ShutdownObs-Wise.vbs" />
     <Content Include="Scripts\StartupObs-Wise.vbs" />
     <Content Include="Scripts\Wise\Wise.Ascom.wsc" />

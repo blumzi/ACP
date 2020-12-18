@@ -29,6 +29,26 @@ namespace WiseWeatherSetup
         {
             InitializeComponent();
 
+            Dictionary<string, Settings> defaultSettings = new Dictionary<string, Settings>() {
+                    { "c28-pc", new Settings {
+                        WeatherStationIsReliable = true,
+                        Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
+                        Dome = new Dome { HomePosition = 233.0 },
+                    } },
+
+                    { "c18-pc", new Settings {
+                        WeatherStationIsReliable = false,
+                        Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
+                        Dome = new Dome { HomePosition = 82.0 },
+                    } },
+
+                    { "dome-pc", new Settings {
+                        WeatherStationIsReliable = true,
+                        Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
+                        Dome = new Dome { HomePosition = 90.0 },
+                    } },
+                };
+
             try
             {
                 using (StreamReader sr = File.OpenText(settingsFile))
@@ -39,44 +59,30 @@ namespace WiseWeatherSetup
             }
             catch (Exception)
             {
-                double defaultDomeHome = 0;
-
-                switch (machine)
-                {
-                    case "c28-pc":
-                        defaultDomeHome = 233.0;
-                        break;
-                    case "c18-pc":
-                        defaultDomeHome = 82.0;
-                        break;
-                    case "dome-pc":
-                        defaultDomeHome = 90.0;
-                        break;
-                }
-
+                Settings def = defaultSettings[machine];
                 settings = new Settings()
                 {
                     Saved = DateTime.MinValue,
                     Server = new Server { Address = "dome-pc", Port = 11111, },
-                    Telescope = new Telescope { MonitoringEnabled = false, HourAngle = 0, Declination = 0 },
-                    Dome = new Dome { HomePosition = defaultDomeHome, },
-                    Reliable = false,
+                    Telescope = def.Telescope,
+                    Dome = def.Dome,
+                    WeatherStationIsReliable = def.WeatherStationIsReliable,
                 };
             }
 
             Address = settings.Server.Address;
             Port = settings.Server.Port;
-            Reliable = settings.Reliable;
+            Reliable = settings.WeatherStationIsReliable;
 
             textBoxServerAddress.Text = Address;
             textBoxServerPort.Text = Port.ToString();
             checkBoxLocalWeatherIsReliable.Checked = Reliable;
 
             checkBoxMonitoringEnabled.Checked = settings.Telescope.MonitoringEnabled;
-            textBoxTeleAltLimit.Text = ascomutil.DegreesToDMS(settings.Telescope.AltLimit);
+            textBoxTeleAltLimit.Text = ascomutil.DegreesToDM(settings.Telescope.AltLimit);
             textBoxTeleParkingHA.Text = ascomutil.DegreesToHMS(settings.Telescope.HourAngle);
             textBoxTeleParkingDec.Text = ascomutil.DegreesToDMS(settings.Telescope.Declination);
-            textBoxDomeHomePosition.Text = ascomutil.DegreesToDMS(settings.Dome.HomePosition);
+            textBoxDomeHomePosition.Text = ascomutil.DegreesToDM(settings.Dome.HomePosition);
             labelMachine.Text = machine;
         }
 
@@ -93,7 +99,7 @@ namespace WiseWeatherSetup
         {
             settings.Server.Address = textBoxServerAddress.Text.Trim();
             settings.Server.Port = Convert.ToUInt16(textBoxServerPort.Text.Trim());
-            settings.Reliable = checkBoxLocalWeatherIsReliable.Checked;
+            settings.WeatherStationIsReliable = checkBoxLocalWeatherIsReliable.Checked;
             settings.Saved = DateTime.Now;
             settings.Telescope.MonitoringEnabled = checkBoxMonitoringEnabled.Checked;
             settings.Telescope.AltLimit = ascomutil.DMSToDegrees(textBoxTeleAltLimit.Text);
@@ -101,8 +107,18 @@ namespace WiseWeatherSetup
             settings.Telescope.Declination = ascomutil.DMSToDegrees(textBoxTeleParkingDec.Text);
             settings.Dome.HomePosition = ascomutil.DMSToDegrees(textBoxDomeHomePosition.Text);
 
-            File.WriteAllText(settingsFile, JsonConvert.SerializeObject(settings));
+            File.WriteAllText(settingsFile, JsonConvert.SerializeObject(settings, Formatting.Indented));
             Close();
+        }
+
+        public class ASCOMResponse
+        {
+            public string Value;
+            public int ClientTransactionID;
+            public int ServerTransactionID;
+            public int ErrorNumber;
+            public string ErrorMessage;
+            public string DriverException;
         }
 
         private void buttonTest_Click(object sender, EventArgs e)
@@ -163,8 +179,14 @@ namespace WiseWeatherSetup
             }
             else
             {
-                string reply = ((byte[])e.Result).ToString();
-                MessageBox.Show($"Reply: {reply}", "Communication success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ASCOMResponse response = JsonConvert.DeserializeObject<ASCOMResponse>(System.Text.Encoding.UTF8.GetString(e.Result));
+
+                if (response.ErrorNumber == 0 && response.DriverException == null)
+                    MessageBox.Show($"Communication with the SafeToOperate service succeeded.", "Communication success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else
+                    MessageBox.Show("Communication with the SafeToOperate service failed\n" + 
+                        $"\tError: {response.ErrorMessage}\n" +
+                        $"\tException: {response.DriverException}", "Communication failure", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
@@ -191,7 +213,7 @@ namespace WiseWeatherSetup
     {
         public DateTime Saved;
         public Server Server;
-        public bool Reliable;
+        public bool WeatherStationIsReliable;
         public Telescope Telescope;
         public Dome Dome;
     }

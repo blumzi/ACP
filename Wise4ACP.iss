@@ -5,11 +5,13 @@
 #define MyAppVersion          "1.0"
 #define MyAppPublisher        "Wise Observatory Software"
 #define AcpDest               "C:\Program Files (x86)\ACP Obs Control\"
-#define ScriptsDest           "C:\Program Files (x86)\ACP Obs Control\Scripts\Wise\"
+#define ScriptsDest           "C:\Program Files (x86)\ACP Obs Control\Scripts\"
+#define WiseScriptsDest       "C:\Program Files (x86)\ACP Obs Control\Scripts\Wise\"
 #define WeatherComponentsDest "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\"
 #define WeatherSetupDest      "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\WiseWeatherSetup\"
 #define SchedulerDest         "C:\Users\Public\Documents\ACP Config\Scheduler\"
-#define AcpSrc                "C:\Users\Blumzi\Source\Repos\ACP"
+#define AcpSrc                "C:\Users\mizpe\source\repos\blumzi\ACP"
+#define Regasm                "{dotnet4032}\RegAsm.exe"
 
 #pragma option -v+
 #pragma verboselevel 9
@@ -35,35 +37,36 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#AcpSrc}\Scripts\Wise\*";                                 DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AcpSrc}\Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AcpSrc}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AcpSrc}\WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit
 Source: "{#AcpSrc}\Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AcpSrc}\Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AcpSrc}\Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#AcpSrc}\UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion
 
 [Run]
 Filename: "{sys}\regsvr32";      WorkingDir: "{#AcpDest}";               Flags: runascurrentuser; Parameters: "/s UserActions-Wise.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.ASCOM.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Camera.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Dli.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Dome.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s /nologo WiseWeatherSetup.dll"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.ASCOM.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.Camera.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.Dli.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.Dome.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.HTTP.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.Util.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s Wise.Tele.wsc"
+Filename: "{#Regasm}";           WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser runminimized; Parameters: "/codebase /tlb WiseWeatherSetup.dll"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#WeatherComponentsDest}"; Flags: runascurrentuser; Parameters: "/s WiseWeather.wsc"
 
 [UninstallRun]
 Filename: "{sys}\regsvr32";      WorkingDir: "{#AcpDest}";               Flags: runascurrentuser; Parameters: "/s /u UserActions-Wise.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Camera.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Dli.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Dome.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
-Filename: "{sys}\regsvr32";      WorkingDir: "{#ScriptsDest}";           Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
-Filename: "{dotnet4032}\regasm"; WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser; Parameters: "/s /u /nologo WiseWeatherSetup.dll"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.ASCOM.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.Camera.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.Dli.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.Dome.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.HTTP.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.Util.wsc"
+Filename: "{sys}\regsvr32";      WorkingDir: "{#WiseScriptsDest}";       Flags: runascurrentuser; Parameters: "/s /u Wise.Tele.wsc"
+Filename: "{#Regasm}";           WorkingDir: "{#WeatherSetupDest}";      Flags: runascurrentuser runminimized; Parameters: "/unregister WiseWeatherSetup.dll"
 Filename: "{sys}\regsvr32";      WorkingDir: "{#WeatherComponentsDest}"; Flags: runascurrentuser; Parameters: "/s /u WiseWeather.wsc"
 
 

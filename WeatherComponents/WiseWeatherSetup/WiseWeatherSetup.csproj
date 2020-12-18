@@ -101,15 +101,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <COMReference Include="ACP">
-      <Guid>{776FDB99-9927-4824-AEF8-D5622CFFC234}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </COMReference>
     <COMReference Include="IObjectSafetyTLB">
       <Guid>{C67830E0-D11D-11CF-BD80-00AA00575603}</Guid>
       <VersionMajor>1</VersionMajor>
