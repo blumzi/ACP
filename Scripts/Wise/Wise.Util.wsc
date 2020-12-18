@@ -75,6 +75,7 @@
                 <parameter name="message"/>
                 <parameter name="command"/>
             </method>
+            <method name="load_settings"/>
         </public>
 
         <script language="VBScript">
@@ -271,6 +272,44 @@
         shell.run command
         set shell = Nothing
     end sub
+
+    
+    sub load_settings()
+        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
+        dim f, json
+
+        on error resume next
+        set f = fso.OpenTextFile(jsonFile, 1)
+        json = f.readall
+        f.close
+        f = nothing        
+
+        if (err.number = 0) then
+            with createobject("ScriptControl")
+                .Language = "JScript"
+                with .Eval("(" + json + ")")
+                    wise_ascom.server = .Server.Address
+                    wise_ascom.port = .Server.Port
+                    wise_tele.monitoring = .Telescope.MonitoringEnabled
+                    wise_tele.alt_limit = .Telescope.AltLimit
+                    wise_tele.parking_ha = .Telescope.HourAngle
+                    wise_tele.parking_dec = .Telescope.Declination
+                    wise_dome.parking_az = .Dome.HomePosition
+                    weather_station_is_reliable = .Reliable
+                end with
+            end with
+        else
+            err.Clear
+            wise_ascom.server = "132.66.65.9"
+            wise_ascom.port = 11111
+            wise_tele.monitoring = false
+            wise_tele.alt_limit = 0.0
+            wise_tele.parking_ha = 0.0
+            wise_tele.parking_dec = 0.0
+            weather_station_is_reliable = false
+        end if
+        on error goto 0
+    end sub 
 
         ]]>
         </script>

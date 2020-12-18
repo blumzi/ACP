@@ -38,6 +38,7 @@
         </registration>
         <public>
             <method name="startup"/>
+            <method name="shutdown"/>
             <method name="sync_to_absolute_encoders"/>
             <method name="check_limits"/>
             <property name="monitoring">
@@ -63,6 +64,7 @@
     <![CDATA[
 
     dim wise_util : set wise_util = createobject("Wise.Util")
+    dim wise_dli  : set wise_dli = createobject("Wise.Dli")
     dim acp_util  : set acp_util = createobject("ACP.Util")
     dim obs       : obs = wise_util.observatory
     dim label     : label = wise_util.mklabel("Tele")
@@ -80,28 +82,14 @@
     const park_ha_subkey   = "ParkHA"
     const park_dec_subkey  = "ParkDec"
 
-    dim dli
     dim acp_tele : set acp_tele = createobject("ACP.Telescope")
-
-    select case obs
-        case "c18"
-            set dli = createobject("Wise.DliPowerSwitch")
-
-        case "c28"
-            set dli = createobject("Wise.DliPowerSwitch")
-
-        case "wise40"
-            set dli = nothing
-    end select
 
 
     sub startup
 
-        if not isnull(dli) then
-            if not dli.has_power("Telescope") then
-                dli.power_on("Telescope")
-                wise_util.sleep 3
-            end if
+        if not wise_dli.has_power("Telescope") then
+            wise_dli.power_on("Telescope")
+            wise_util.sleep 3
         end if
 
         if not acp_util.telescopeconnected then
@@ -109,7 +97,7 @@
             dim elapsed    : elapsed = 0
             dim start_time : start_time = timer
 
-            wise_util.info label & "Connecting telescope ..."
+            wise_util.info label & "Connecting ..."
             on error resume next
             acp_util.telescopeconnected = True
             if err.number <> 0 then
@@ -123,14 +111,64 @@
             loop
 
             if not acp_util.telescopeconnected then
-                wise_util.fatal label & "Telescope not connected within " & max_seconds & " seconds"
+                wise_util.fatal label & "Not connected within " & max_seconds & " seconds"
             end if
 
-            dim msg : msg = "Telescope connected"
+            dim msg : msg = "Connected"
             if elapsed > 0 then
                 msg = msg & " in " & elapsed & " seconds"
             end if
             wise_util.info label & msg
+        end if
+
+    end sub
+
+    sub shutdown
+
+        if not wise_dli.has_power("Telescope") then
+            wise_dli.power_on("Telescope")
+            wise_util.sleep 3
+        end if
+
+        if not acp_tele.connected then
+            wise_util.connect_and_wait acp_tele, 30
+        end if
+
+        if acp_tele.slewing then
+            acp_tele.abortslew
+            wise_util.info label & "Aborted slew"
+            wise_util.sleep 5
+        end if
+
+        if acp_tele.canpark and not acp_tele.atpark then
+            wise_util.info label & "Parking ..."
+            acp_tele.park
+            if not acp_tele.atpark then
+                wise_util.warning label & "Failed to park!"
+            end if
+        else
+            ' This telescope cannot Park, we slew it to park position
+            dim telescope_parking_ra : telescope_parking_ra = acp_util.NowLST
+
+            wise_util.info label & "Parking at " & util.HMS_Hours(telescope_parking_ra) & ", " & util.DMS_Degrees(telescope_parking_dec)
+            acp_tele.SlewToCoordinatesAsync telescope_parking_ra, telescope_parking_dec
+            wise_util.sleep 2                   ' wait for start of slew
+            while acp_tele.slewing
+                wise_util.info label & " at " & util.HMS_Hours(acp_tele.rightascension) & ", " & util.DMS_Degrees(acp_tele.declination) & " ..."
+                wise_util.sleep 5
+            wend
+        end if
+        wise_util.info label & "Parked at " & util.HMS_Hours(telescope.rightascension) & ", " & util.DMS_Degrees(telescope.declination)
+
+        if acp_tele.Connected then
+            acp_tele.Connected = False 'Disconnect it from ACP to force dome unslave
+            wise_util.info label & "Disconnected"
+        end if
+            
+        if wise_dli.has_power("Telescope") then
+            wise_dli.power_off("Telescope")
+            wise_util.info label & "Powered OFF"
+            wise_util.sleep 3
         end if
 
     end sub
@@ -260,7 +298,7 @@
         if not monitoring  then _
             exit sub
 
-        if not dli.has_power("Telescope") then
+        if not wise_dli.has_power("Telescope") then
             wise_util.trace "[I] " & label & "The telescope is powered OFF"
             exit sub
         end if

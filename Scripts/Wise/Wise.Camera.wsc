@@ -51,10 +51,10 @@
     <![CDATA[
 
     dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim wise_dli    : set wise_dli = createobject("Wise.Dli")
     dim acp_util    : set acp_util = createobject("ACP.Util")
     dim camera      : set camera = createobject("MaxIm.CCDCamera")
-    dim dli         : set dli = createobject("Wise.DliPowerSwitch")
-    dim observatory : observatory = wise_util.observatory
+    dim obs         : obs = wise_util.obs
 
     dim initialized : initialized = false
     dim label       : label = wise_util.mklabel("Camera")
@@ -132,13 +132,17 @@
             exit sub
         end if
 
-        if observatory = "c18" or observatory = "c28" then
-            if dli.has_power("ccd") then
-                wise_util.info label & "power is on"
-            else
-                dli.power_on("ccd")
-                wise_util.sleep 2
-            end if
+        if wise_dli.has_power("ccd") then
+            wise_util.info label & "Power is ON"
+        else
+            wise_dli.power_on("ccd")
+            wise_util.info label & "Powered ON"
+            wise_util.sleep 2
+        end if
+
+        if not acp_util.cameraconnected then
+            acp_util.cameraconnected = true
+            wise_util.info label & "Activated MaxIm DL"
         end if
 
         if camera.linkenabled then
@@ -158,46 +162,25 @@
 
     sub startup
         init_camera
-
-        if observatory = "c18" or observatory = "c28" then
-            if not dli.has_power("ccd") then
-                dli.power_on("ccd")
-                wise_util.sleep 5
-            end if
-        end if
-
-        if not acp_util.cameraconnected then
-            acp_util.cameraconnected = true
-            wise_util.info label & "activated MaxIm DL"
-        end if
-
-        if not camera.linkenabled then
-            camera.linkenabled = true
-            wise_util.info label & "enabled MaxIm DL link"
-        end if
-
         cool_down
     end sub
 
     sub shutdown
         init_camera
-
         warm_up
 
         if camera.linkenabled then
             camera.linkenabled = false
-            wise_util.info label & "disabled MaxIm DL link"
+            wise_util.info label & "Disabled MaxIm DL link"
         end if
 
         if acp_util.cameraconnected then
             acp_util.cameraconnected = false
-            wise_util.info label & "deactivated MaxIm DL"
+            wise_util.info label & "Deactivated MaxIm DL"
         end if
 
-        if observatory = "c18" or observatory = "c28" then
-            if dli.has_power("ccd") then
-                dli.power_off("ccd")
-            end if
+        if wise_dli.has_power("ccd") then
+            wise_dli.power_off("ccd")
         end if
 
     end sub

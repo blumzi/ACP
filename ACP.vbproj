@@ -101,7 +101,7 @@
     <Content Include="Scripts\StartupObs-Wise.vbs" />
     <Content Include="Scripts\Wise\Wise.Ascom.wsc" />
     <Content Include="Scripts\Wise\Wise.Camera.wsc" />
-    <Content Include="Scripts\Wise\Wise.DliPowerSwitch.wsc" />
+    <Content Include="Scripts\Wise\Wise.Dli.wsc" />
     <Content Include="Scripts\Wise\Wise.Dome.wsc" />
     <Content Include="Scripts\Wise\Wise.Http.wsc" />
     <Content Include="Scripts\Wise\Wise.Tele.wsc" />
@@ -204,7 +204,7 @@
       <IncludeHash>True</IncludeHash>
       <FileType>File</FileType>
     </PublishFile>
-    <PublishFile Include="Scripts\Wise\Wise.DliPowerSwitch.wsc">
+    <PublishFile Include="Scripts\Wise\Wise.Dli.wsc">
       <Visible>False</Visible>
       <Group>
       </Group>

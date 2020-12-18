@@ -20,12 +20,10 @@ namespace WiseWeatherSetup
 {
     public partial class Form : System.Windows.Forms.Form
     {
-        private readonly string machine = Environment.MachineName;
-        private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WeatherComponents/WiseWeather.json";
-        private Settings settings;
-        private string _serverStatus;
-        private Color _serverStatusColor;
-        ASCOM.Utilities.Util ascomutil = new ASCOM.Utilities.Util();
+        private readonly string machine = Environment.MachineName.ToLower();
+        private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WiseSettings.json";
+        private readonly   Settings settings;
+        readonly ASCOM.Utilities.Util ascomutil = new ASCOM.Utilities.Util();
 
         public Form()
         {
@@ -38,13 +36,30 @@ namespace WiseWeatherSetup
                     JsonSerializer serializer = new JsonSerializer();
                     settings = (Settings)serializer.Deserialize(sr, typeof(Settings));
                 }
-            } catch (Exception)
+            }
+            catch (Exception)
             {
+                double defaultDomeHome = 0;
+
+                switch (machine)
+                {
+                    case "c28-pc":
+                        defaultDomeHome = 233.0;
+                        break;
+                    case "c18-pc":
+                        defaultDomeHome = 82.0;
+                        break;
+                    case "dome-pc":
+                        defaultDomeHome = 90.0;
+                        break;
+                }
+
                 settings = new Settings()
                 {
                     Saved = DateTime.MinValue,
                     Server = new Server { Address = "dome-pc", Port = 11111, },
-                    Monitoring = new TelescopeMonitoring { Enabled = false, HourAngle = 0, Declination = 0 },
+                    Telescope = new Telescope { MonitoringEnabled = false, HourAngle = 0, Declination = 0 },
+                    Dome = new Dome { HomePosition = defaultDomeHome, },
                     Reliable = false,
                 };
             }
@@ -57,10 +72,11 @@ namespace WiseWeatherSetup
             textBoxServerPort.Text = Port.ToString();
             checkBoxLocalWeatherIsReliable.Checked = Reliable;
 
-            checkBoxMonitoringEnabled.Checked = settings.Monitoring.Enabled;
-            textBoxAltLimit.Text = ascomutil.DegreesToDMS(settings.Monitoring.AltLimit);
-            textBoxParkingHA.Text = ascomutil.DegreesToHMS(settings.Monitoring.HourAngle);
-            textBoxParkingDec.Text = ascomutil.DegreesToDMS(settings.Monitoring.Declination);
+            checkBoxMonitoringEnabled.Checked = settings.Telescope.MonitoringEnabled;
+            textBoxTeleAltLimit.Text = ascomutil.DegreesToDMS(settings.Telescope.AltLimit);
+            textBoxTeleParkingHA.Text = ascomutil.DegreesToHMS(settings.Telescope.HourAngle);
+            textBoxTeleParkingDec.Text = ascomutil.DegreesToDMS(settings.Telescope.Declination);
+            textBoxDomeHomePosition.Text = ascomutil.DegreesToDMS(settings.Dome.HomePosition);
             labelMachine.Text = machine;
         }
 
@@ -79,10 +95,11 @@ namespace WiseWeatherSetup
             settings.Server.Port = Convert.ToUInt16(textBoxServerPort.Text.Trim());
             settings.Reliable = checkBoxLocalWeatherIsReliable.Checked;
             settings.Saved = DateTime.Now;
-            settings.Monitoring.Enabled = checkBoxMonitoringEnabled.Checked;
-            settings.Monitoring.AltLimit = ascomutil.DMSToDegrees(textBoxAltLimit.Text);
-            settings.Monitoring.HourAngle = ascomutil.HMSToDegrees(textBoxParkingHA.Text);
-            settings.Monitoring.Declination = ascomutil.DMSToDegrees(textBoxParkingDec.Text);
+            settings.Telescope.MonitoringEnabled = checkBoxMonitoringEnabled.Checked;
+            settings.Telescope.AltLimit = ascomutil.DMSToDegrees(textBoxTeleAltLimit.Text);
+            settings.Telescope.HourAngle = ascomutil.HMSToDegrees(textBoxTeleParkingHA.Text);
+            settings.Telescope.Declination = ascomutil.DMSToDegrees(textBoxTeleParkingDec.Text);
+            settings.Dome.HomePosition = ascomutil.DMSToDegrees(textBoxDomeHomePosition.Text);
 
             File.WriteAllText(settingsFile, JsonConvert.SerializeObject(settings));
             Close();
@@ -93,16 +110,14 @@ namespace WiseWeatherSetup
 
             if (string.IsNullOrWhiteSpace(textBoxServerAddress.Text))
             {
-                labelStatus.Text = "Null or empty Address";
-                labelStatus.ForeColor = Color.Red;
+                MessageBox.Show("Null or empty Address", "Bad setting", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             string server = textBoxServerAddress.Text;
 
             if (string.IsNullOrWhiteSpace(textBoxServerPort.Text))
             {
-                labelStatus.Text = "Null or empty Port";
-                labelStatus.ForeColor = Color.Red;
+                MessageBox.Show("Null or empty Port", "Bad setting", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             UInt16 port = Convert.ToUInt16(textBoxServerPort.Text);
@@ -114,7 +129,6 @@ namespace WiseWeatherSetup
             {
                 try
                 {
-                    labelStatus.Text = "Connecting ASCOM server";
                     DateTime start = DateTime.Now;
 
                     client.DownloadDataCompleted += new DownloadDataCompletedEventHandler(onDataDownloadCompletion);
@@ -125,16 +139,14 @@ namespace WiseWeatherSetup
                         if (DateTime.Now.Subtract(start).TotalMilliseconds > 500)
                         {
                             client.CancelAsync();
-                            labelStatus.Text = "Connection timedout.";
-                            labelStatus.ForeColor = Color.Red;
+                            MessageBox.Show("Connection timedout.", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             break;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    labelStatus.Text = $"Exception: {ex.Message}";
-                    labelStatus.ForeColor = Color.Red;
+                    MessageBox.Show($"Exception: {ex.Message}", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -143,22 +155,17 @@ namespace WiseWeatherSetup
         {
             if (e.Cancelled)
             {
-                _serverStatus = "timedout";
-                _serverStatusColor = Color.Red;
+                MessageBox.Show("Connection timedout.", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             else if (e.Error != null)
             {
-                _serverStatus = $"error: {e.Error}";
-                _serverStatusColor = Color.Red;
+                MessageBox.Show($"Error: {e.Error}", "Communication error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             else
             {
                 string reply = ((byte[])e.Result).ToString();
-                _serverStatus = reply;
-                _serverStatusColor = Color.Green;
+                MessageBox.Show($"Reply: {reply}", "Communication success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            labelStatus.Text = $"Connection {_serverStatus}";
-            labelStatus.ForeColor = _serverStatusColor;
         }
     }
 
@@ -168,11 +175,16 @@ namespace WiseWeatherSetup
         public ushort Port;
     };
 
-    public class TelescopeMonitoring
+    public class Telescope
     {
-        public bool Enabled;
+        public bool MonitoringEnabled;
         public double AltLimit;
         public double HourAngle, Declination;
+    }
+
+    public class Dome
+    {
+        public double HomePosition;
     }
 
     public class Settings
@@ -180,6 +192,7 @@ namespace WiseWeatherSetup
         public DateTime Saved;
         public Server Server;
         public bool Reliable;
-        public TelescopeMonitoring Monitoring;
+        public Telescope Telescope;
+        public Dome Dome;
     }
 }
