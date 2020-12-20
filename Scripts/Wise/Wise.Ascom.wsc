@@ -43,14 +43,14 @@
                 <parameter name="url"/>
                 <parameter name="data"/>
 			</method>
-            <property name="server">
-                <get/>
-                <put/>
-            </property>
-            <property name="port">
-                <get/>
-                <put/>
-            </property>
+      <property name="server">
+          <get/>
+          <put/>
+      </property>
+      <property name="port">
+          <get/>
+          <put/>
+      </property>
 		</public>
 
 		<script language="VBScript">

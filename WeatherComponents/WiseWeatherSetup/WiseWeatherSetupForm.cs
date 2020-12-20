@@ -22,32 +22,35 @@ namespace WiseWeatherSetup
     {
         private readonly string machine = Environment.MachineName.ToLower();
         private const string settingsFile = "c:/Program Files (x86)/ACP Obs Control/WiseSettings.json";
-        private readonly   Settings settings;
+        private readonly Settings settings;
         readonly ASCOM.Utilities.Util ascomutil = new ASCOM.Utilities.Util();
+
+        Dictionary<string, Settings> defaultSettings = new Dictionary<string, Settings>() {
+                { "c28-pc", new Settings {
+                    Observatory = "C28",
+                    WeatherStationIsReliable = true,
+                    Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
+                    Dome = new Dome { HomePosition = 233.0 },
+                } },
+
+                { "c18-pc", new Settings {
+                    Observatory = "C18",
+                    WeatherStationIsReliable = false,
+                    Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
+                    Dome = new Dome { HomePosition = 82.0 },
+                } },
+
+                { "dome-pc", new Settings {
+                    Observatory = "Wise40",
+                    WeatherStationIsReliable = true,
+                    Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
+                    Dome = new Dome { HomePosition = 90.0 },
+                } },
+            };
 
         public Form()
         {
             InitializeComponent();
-
-            Dictionary<string, Settings> defaultSettings = new Dictionary<string, Settings>() {
-                    { "c28-pc", new Settings {
-                        WeatherStationIsReliable = true,
-                        Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
-                        Dome = new Dome { HomePosition = 233.0 },
-                    } },
-
-                    { "c18-pc", new Settings {
-                        WeatherStationIsReliable = false,
-                        Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
-                        Dome = new Dome { HomePosition = 82.0 },
-                    } },
-
-                    { "dome-pc", new Settings {
-                        WeatherStationIsReliable = true,
-                        Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
-                        Dome = new Dome { HomePosition = 90.0 },
-                    } },
-                };
 
             try
             {
@@ -97,6 +100,8 @@ namespace WiseWeatherSetup
 
         private void buttonOk_Click(object sender, EventArgs e)
         {
+            settings.Observatory = defaultSettings[machine].Observatory;
+            settings.Machine = machine;
             settings.Server.Address = textBoxServerAddress.Text.Trim();
             settings.Server.Port = Convert.ToUInt16(textBoxServerPort.Text.Trim());
             settings.WeatherStationIsReliable = checkBoxLocalWeatherIsReliable.Checked;
@@ -212,6 +217,8 @@ namespace WiseWeatherSetup
     public class Settings
     {
         public DateTime Saved;
+        public string Observatory;
+        public string Machine;
         public Server Server;
         public bool WeatherStationIsReliable;
         public Telescope Telescope;

@@ -83,8 +83,6 @@ Edit History:
 			</property>
 		</public>
 
-        <object id="form" progid="WiseWeatherSetup.Form" events="false" reference="true"/>
-
 		<script id="WiseWeather" language="VBScript">
 
 <![CDATA[
@@ -140,7 +138,7 @@ Edit History:
     dim wise_tele  : set wise_tele  = createobject("Wise.Tele")
     dim obs        : obs = wise_util.observatory
 
-    wise_util.load_settings
+    load_weather_settings
 
     if weather_station_is_reliable and ClarityII is Nothing Then
         Set ClarityII = CreateObject("ClarityII.CloudSensorII")
@@ -155,7 +153,7 @@ Edit History:
     ' Invokes the weather access setup dialog.
     '------------------------------------------------------------------------------
     sub SetupDialog()
-        'dim form : set form=createobject("WiseWeatherSetup.Form")
+        dim form : set form=createobject("WiseWeatherSetup.Form")
 
         form.show
     end sub
@@ -439,6 +437,7 @@ Edit History:
 
     function WiseIsSafe()
         dim response, seconds, i, items, reasons
+        dim server : server = wise_ascom.server
                 
         seconds = datediff("s", lastIsSafeQueryTime, Now)
         if (seconds < 60) Then
@@ -499,17 +498,17 @@ Edit History:
 
                 if (instr(response, "HumanIntervention")) then
                     for i = 1 to ubound(reasons) - 1
-                        wise_util.trace("[W] Safety: (from wise40) not-safe HumanIntervention: " & reasons(i))
+                        wise_util.trace("[W] Safety: (from " & server & ") not-safe HumanIntervention: " & reasons(i))
                     next
                 else
                     for i = 0 to ubound(reasons) - 1
-                        wise_util.trace("[W] Safety: (from wise40) not-safe unsafereason: " & reasons(i))
+                        wise_util.trace("[W] Safety: (from " & server & ") not-safe unsafereason: " & reasons(i))
                     next
                 end if
             end if
         elseif (response = "true") Then
             WiseIsSafe = True
-            'wise_util.trace "[I] (from wise40) safe"
+            'wise_util.trace "[I] (from " & server & ") safe"
         end if
         
         lastIsSafeQueryTime = Now
@@ -548,6 +547,30 @@ Edit History:
             'wise_util.trace "unsafereasons2array(" & i & ") '" & ret(i) & "'"
         'next
     end function
+    
+    sub load_weather_settings()
+        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
+        dim f, json
+
+        on error resume next
+        set f = fso.OpenTextFile(jsonFile, 1)
+        json = f.readall
+        f.close
+        f = nothing        
+
+        if (err.number = 0) then
+            with createobject("ScriptControl")
+                .Language = "JScript"
+                with .Eval("(" + json + ")")
+                    weather_station_is_reliable = .WeatherStationIsReliable
+                end with
+            end with
+        else
+            err.Clear
+            weather_station_is_reliable = false
+        end if
+        on error goto 0
+    end sub 
 
 ]]>
 		</script>

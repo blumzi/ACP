@@ -277,6 +277,7 @@
     sub load_settings()
         const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
         dim f, json
+        dim wise_weather : set wise_weather = createobject("ACP.WiseWeather")
 
         on error resume next
         set f = fso.OpenTextFile(jsonFile, 1)
@@ -295,7 +296,7 @@
                     wise_tele.parking_ha = .Telescope.HourAngle
                     wise_tele.parking_dec = .Telescope.Declination
                     wise_dome.parking_az = .Dome.HomePosition
-                    weather_station_is_reliable = .WeatherStationIsReliable
+                    wise_weather.WeatherStationIsReliable = .WeatherStationIsReliable
                 end with
             end with
         else
