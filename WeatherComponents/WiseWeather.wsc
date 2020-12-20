@@ -178,7 +178,7 @@ Edit History:
 
         if newValue Then
             wise_util.trace " "
-            wise_util.trace "Connected (observatory: " & obs & ", weather_station_is_reliable: " & weather_station_is_reliable & ", use_local_station: " & use_local_station & ")"
+            wise_util.trace "Connected (observatory: " & obs & ", use_local_station: " & use_local_station & ")"
             wise_tele.check_limits
         else
             wise_util.trace "Disconnected"
@@ -551,13 +551,14 @@ Edit History:
     sub load_weather_settings()
         const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
         dim f, json
-
+        
+        err.Clear
         on error resume next
         set f = fso.OpenTextFile(jsonFile, 1)
         json = f.readall
         f.close
-        f = nothing        
-
+        f = nothing
+        
         if (err.number = 0) then
             with createobject("ScriptControl")
                 .Language = "JScript"
