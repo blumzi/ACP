@@ -39,7 +39,7 @@
         <public>
             <method name="startup"/>
             <method name="shutdown"/>
-            <method name="sync_to_absolute_encoders"/>
+            <method name="c28_sync_to_absolute_encoders"/>
             <method name="check_limits"/>
             <property name="monitoring">
                 <get />
@@ -173,7 +173,7 @@
 
     end sub
 
-    sub sync_to_absolute_encoders
+    sub c28_sync_to_absolute_encoders
         dim label : label = wise_util.mklabel("Encoders")
 
         if not obs = "c28" then
@@ -201,7 +201,7 @@
         ' Example:    0:256:NoError,1:1024:NoError
         '
         dim sh   : set sh = createobject ("WScript.Shell")
-        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\A2Read\bin\Debug\A2Read.exe COM10 0 1 retry=15")
+        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\bin\Debug\A2Read.exe COM11 0 1 retry=15")
         raw_reading = exec.stdout.ReadLine()
         set sh = nothing
         set exec = nothing
@@ -321,7 +321,7 @@
         end if
 
         if acp_tele.rightascension < 0.001 and acp_tele.declination < 0.01 then
-            sync_to_absolute_encoders
+            c28_sync_to_absolute_encoders
         end if
 
         msg  = msg & _
