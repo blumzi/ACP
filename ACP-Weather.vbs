@@ -25,13 +25,19 @@ sub main
 
 	select case obs
 		case "c28"
+			if not wise_dli.has_power("Telescope") then
+				wise_dli.power_on("Telescope")
+				wise_util.sleep 5
+			end if
+
 			if not telescope.connected then
 				telescope.connected = true		' this will also connect to the dome
+				wise_util.info label & "connected Telescope"
 			end if
 
 			wise_dome.shutdown
 			wise_tele.slew_to_parking_position
 	end select
 
-    wise_util.info label & "done"
+    wise_util.info label &  "done"
 end sub
