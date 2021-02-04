@@ -71,11 +71,21 @@
             <method name="mklabel">
                 <parameter name="label"/>
             </method>
-            <method name="run">
+            <method name="task_run">
                 <parameter name="message"/>
                 <parameter name="command"/>
             </method>
-            <method name="load_settings"/>
+		<!--
+            <method name="task_check_or_run">
+                <parameter name="message"/>
+                <parameter name="image_pattern"/>
+                <parameter name="command"/>
+            </method>
+		-->
+            <method name="task_kill">
+                <parameter name="message"/>
+                <parameter name="command"/>
+            </method>
         </public>
 
         <script language="VBScript">
@@ -88,7 +98,7 @@
     dim prog_file, prog_name
 
     if not isobject(acp_util.console.script) then
-        prog_name = "WiseWeather"
+        prog_name = "WiseComponentsForACP"
         prog_path = "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\" & prog_name & ".wsc"
     else
         if fso is nothing then
@@ -118,10 +128,10 @@
     '
     ' Outputs a message and terminates the current script
     '
-    sub fatal(msg)
+    sub fatal(source, msg)
         say "[F] " & msg
         err.clear
-        acp_util.AbortScript
+        err.raise vbObjectError + 1000, source, msg
     end sub
 
     '
@@ -156,9 +166,9 @@
         if datepart("h", utc) < 12 then
             utc = dateadd("d", -1, utc)
         end if
-        today = acp_util.FormatVar(utc, "yyyymmdd")
+        today = acp_util.FormatVar(utc, "yyyy-mm-dd")
 
-        folder = acp_util.Prefs.LocalUser.DefaultLogDir & "\" &  today
+        folder = "c:\Wise\Logs\" &  today
         if not fso.FolderExists(folder) then
             fso.CreateFolder(folder)
         end if
@@ -218,13 +228,6 @@
 
         if not device.connected then
             fatal label & "'" & device.name & "' did not connect within " & max_seconds & " seconds"
-        else
-            dim elapsed : elapsed = int(timer - start_time)
-            dim msg : msg = label & "'" & device.name & "' connected"
-            if elapsed > 0 then
-                msg = msg & " in " & elapsed & " seconds"
-            end if
-            info msg
         end if
     end sub
 
@@ -265,7 +268,7 @@
         mklabel = str & ": "
     end function
 
-    sub run(message, command)
+    sub task_run(message, command)
         dim shell : set shell = createobject("WScript.Shell") 
 
         info message
@@ -273,44 +276,26 @@
         set shell = Nothing
     end sub
 
-    
-    sub load_settings()
-        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
-        dim f, json
-        dim wise_weather : set wise_weather = createobject("ACP.WiseWeather")
+'	sub task_check_or_run(message, image_pattern, command)
+'		const WshSuccess = 1
+'        dim shell : set shell = createobject("WScript.Shell") 
+'
+'		'shell.exec "qprocess.exe " & """" & image_pattern & """"
+'		shell.exec "qprocess.exe focusmax.exe"
+'		if shell.status <> WshSuccess then
+'			info message
+'			shell.run command
+'		end if
+'        set shell = Nothing
+'	end sub
 
-        on error resume next
-        set f = fso.OpenTextFile(jsonFile, 1)
-        json = f.readall
-        f.close
-        f = nothing        
+	sub task_kill(message, task_image_pattern)
+		dim shell : set shell = createobject("WScript.Shell")
 
-        if (err.number = 0) then
-            with createobject("ScriptControl")
-                .Language = "JScript"
-                with .Eval("(" + json + ")")
-                    wise_ascom.server = .Server.Address
-                    wise_ascom.port = .Server.Port
-                    wise_tele.monitoring = .Telescope.MonitoringEnabled
-                    wise_tele.alt_limit = .Telescope.AltLimit
-                    wise_tele.parking_ha = .Telescope.HourAngle
-                    wise_tele.parking_dec = .Telescope.Declination
-                    wise_dome.parking_az = .Dome.HomePosition
-                    wise_weather.WeatherStationIsReliable = .WeatherStationIsReliable
-                end with
-            end with
-        else
-            err.Clear
-            wise_ascom.server = "132.66.65.9"
-            wise_ascom.port = 11111
-            wise_tele.monitoring = false
-            wise_tele.alt_limit = 0.0
-            wise_tele.parking_ha = 0.0
-            wise_tele.parking_dec = 0.0
-            weather_station_is_reliable = false
-        end if
-        on error goto 0
-    end sub 
+		info message
+		shell.run "taskkill /f /im " & task_image_pattern
+		set shell = nothing
+	end sub
 
         ]]>
         </script>

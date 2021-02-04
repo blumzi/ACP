@@ -37,13 +37,17 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#AcpSrc}\Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#AcpSrc}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#AcpSrc}\WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit
-Source: "{#AcpSrc}\Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#AcpSrc}\Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#AcpSrc}\Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#AcpSrc}\UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion
+Source: "{#AcpSrc}\Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "{#AcpSrc}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "{#AcpSrc}\WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit;                 Permissions: users-full
+Source: "{#AcpSrc}\Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "{#AcpSrc}\Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "{#AcpSrc}\Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "{#AcpSrc}\UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
+Source: "{#AcpSrc}\ACP-Weather.vbs";                                DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
+
+[Dirs]
+Name: "{#WiseScriptsDest}"; Permissions: users-full
 
 [Run]
 Filename: "{sys}\regsvr32";      WorkingDir: "{#AcpDest}";               Flags: runascurrentuser; Parameters: "/s UserActions-Wise.wsc"

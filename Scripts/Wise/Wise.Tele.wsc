@@ -39,24 +39,9 @@
         <public>
             <method name="startup"/>
             <method name="shutdown"/>
+			<method name="slew_to_parking_position"/>
             <method name="c28_sync_to_absolute_encoders"/>
             <method name="check_limits"/>
-            <property name="monitoring">
-                <get />
-                <put />
-            </property>
-            <property name="parking_ha">
-                <get/>
-                <put/>
-            </property>
-            <property name="parking_dec">
-                <get/>
-                <put/>
-            </property>
-            <property name="alt_limit">
-                <get/>
-                <put/>
-            </property>
         </public>
 
         <script language="VBScript">
@@ -64,117 +49,127 @@
     <![CDATA[
 
     dim wise_util : set wise_util = createobject("Wise.Util")
-    dim wise_dli  : set wise_dli = createobject("Wise.Dli")
-    dim acp_util  : set acp_util = createobject("ACP.Util")
-    dim obs       : obs = wise_util.observatory
-    dim label     : label = wise_util.mklabel("Tele")
+    dim wise_dli  : set wise_dli  = createobject("Wise.Dli")
+    dim acp_util  : set acp_util  = createobject("ACP.Util")
+    dim acp_tele  : set acp_tele  = createobject("ACP.Telescope")
 
+    dim obs           : obs           = wise_util.observatory
+    dim label         : label         = wise_util.mklabel("Telescope")
     dim was_connected : was_connected = false
-
-    dim parking     : parking     = false
-    dim monitoring  : monitoring = false
-    dim parking_ha  : parking_ha  = cdbl(get_parking_ha)
-    dim parking_dec : parking_dec = cdbl(get_parking_dec)
-    dim alt_limit   : alt_limit   = cdbl(get_alt_limit)
-
-    const main_key         = "WiseWeather"
-    const alt_limit_subkey = "AltLimit"
-    const park_ha_subkey   = "ParkHA"
-    const park_dec_subkey  = "ParkDec"
-
-    dim acp_tele : set acp_tele = createobject("ACP.Telescope")
+    dim parking       : parking       = false
+    dim monitoring    : monitoring    = false
+    dim parking_ha, parking_dec, alt_limit
 
 
+	'
+	' Generic startup
+	'
     sub startup
+		select case obs
+			case "c28"
+				c28_startup
+			case "c18"
+				c18_startup
+			case "wise40"
+				wise40_startup
+		end select
+    end sub
 
+	'
+	' C28 specific startup
+	'
+	sub c28_startup
         if not wise_dli.has_power("Telescope") then
             wise_dli.power_on("Telescope")
             wise_util.sleep 3
         end if
 
         if not acp_util.telescopeconnected then
-            const max_seconds = 30
-            dim elapsed    : elapsed = 0
-            dim start_time : start_time = timer
-
-            wise_util.info label & "Connecting ..."
-            on error resume next
-            acp_util.telescopeconnected = True
-            if err.number <> 0 then
-                wise_util.fatal label & err.description
-            end if
-            on error goto 0
-
-            do while not acp_util.telescopeconnected and elapsed < max_seconds
-                wise_util.sleep 2
-                elapsed = int(timer - start_time)
-            loop
-
-            if not acp_util.telescopeconnected then
-                wise_util.fatal label & "Not connected within " & max_seconds & " seconds"
-            end if
-
-            dim msg : msg = "Connected"
-            if elapsed > 0 then
-                msg = msg & " in " & elapsed & " seconds"
-            end if
-            wise_util.info label & msg
+			wise_util.connect_and_wait acp_tele, 30
         end if
 
-    end sub
+		c28_sync_to_absolute_encoders
+	end sub
 
+	'
+	' Generic shutdown routine
+	'
     sub shutdown
+
+		select case obs
+			case "c28"
+				c28_shutdown
+		end select 
+
+	end sub
+
+	sub slew_to_parking_position
+		select case obs
+			case "c28"
+				c28_slew_to_parking_position
+		end select 
+	end sub
+
+	sub c28_slew_to_parking_position
+		parking_ra = acp_tele.siderealtime - parking_ha
+		wise_util.info label & "slewing to parking position: " & _
+			acp_util.Hours_HMS(parking_ra) & ", " & _
+			acp_util.Degrees_DMS(parking_dec), ":", ":", "" & " ..."
+
+		' Do we need to unslave the dome?
+        acp_tele.slewtocoordinates parking_ra, parking_dec
+
+		' wait for telescope to start slewing
+		while not acp_tele.slewing
+			wise_util.sleep 2
+		wend
+
+		' wait for telescope to reach parking position
+		while acp_tele.slewing
+			wise_util.sleep 5
+		wend
+
+		wise_util.info label & "reached parking position"
+	end sub
+
+	'
+	' C28 specific routine
+	'
+	sub c28_shutdown
+		'
+		' The FS2 cannot Park, so:
+		'  - we need to send it to the parking coordinates
+		'  - CanPark and CanFindHome are false
+		'  - AtPark and AtHome are not relevant
+		'
+
+		load_telescope_settings
 
         if not wise_dli.has_power("Telescope") then
             wise_dli.power_on("Telescope")
             wise_util.sleep 3
         end if
 
-        if not acp_tele.connected then
-            wise_util.connect_and_wait acp_tele, 30
-        end if
+		if not acp_tele.connected then
+			acp_tele.connected = true
+			wise_util.info label & "connected"
+		end if
 
-        if acp_tele.slewing then
-            acp_tele.abortslew
-            wise_util.info label & "Aborted slew"
-            wise_util.sleep 5
-        end if
+		if acp_tele.rightascension < 0.001 then
+			c28_sync_to_absolute_encoders
+		end if
 
-        if acp_tele.canpark and not acp_tele.atpark then
-            wise_util.info label & "Parking ..."
-            acp_tele.park
-            if not acp_tele.atpark then
-                wise_util.warning label & "Failed to park!"
-            end if
-        else
-            ' This telescope cannot Park, we slew it to park position
-            dim telescope_parking_ra : telescope_parking_ra = acp_util.NowLST
+		c28_slew_to_parking_position
 
-            wise_util.info label & "Parking at " & util.HMS_Hours(telescope_parking_ra) & ", " & util.DMS_Degrees(telescope_parking_dec)
-            acp_tele.SlewToCoordinatesAsync telescope_parking_ra, telescope_parking_dec
-            wise_util.sleep 2                   ' wait for start of slew
-            while acp_tele.slewing
-                wise_util.info label & " at " & util.HMS_Hours(acp_tele.rightascension) & ", " & util.DMS_Degrees(acp_tele.declination) & " ..."
-                wise_util.sleep 5
-            wend
-        end if
-        wise_util.info label & "Parked at " & util.HMS_Hours(telescope.rightascension) & ", " & util.DMS_Degrees(telescope.declination)
+		wise_util.info label & "disconnecting (dome as well)"
+		acp_tele.connected = false
 
-        if acp_tele.Connected then
-            acp_tele.Connected = False 'Disconnect it from ACP to force dome unslave
-            wise_util.info label & "Disconnected"
-        end if
-            
-        if wise_dli.has_power("Telescope") then
-            wise_dli.power_off("Telescope")
-            wise_util.info label & "Powered OFF"
-            wise_util.sleep 3
-        end if
+		wise_dli.power_off("Telescope")
 
     end sub
 
+
     sub c28_sync_to_absolute_encoders
-        dim label : label = wise_util.mklabel("Encoders")
 
         if not obs = "c28" then
             exit sub
@@ -263,18 +258,17 @@
 
         ' Calcullated corrections, by Shay Kaspi
         dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
-        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-01:12:00")
+        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-02:30:00")
 
         ra_hours = ra_hours + ra_correction
         dec_degrees = dec_degrees + dec_correction
-
 
         '
         ' Sync the FS2 with the correct coordinates
         '
         dim msg
         acp_tele.SyncToCoordinates ra_hours, dec_degrees
-        msg = "RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", ":")
+        msg = "synced to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
         wise_util.info label & msg
 
     end sub
@@ -365,45 +359,35 @@
 
     end sub
 
-    function get_alt_limit
-        get_alt_limit = acp_util.profile.getvalue(main_key, alt_limit_subkey, 15)
-    end function
 
-    sub put_alt_limit(value)
-        acp_util.profile.writevalue main_key, value, alt_limit_subkey
-    end sub
+    sub load_telescope_settings()
+        const jsonFile="C:/Program Files (x86)/ACP Obs Control/WiseSettings.json"
+        dim f, json
+		dim fso : set fso = createobject("Scripting.FileSystemObject")
 
-
-    function get_parking_ha
-        get_parking_ha = acp_util.profile.getvalue(main_key, park_ha_subkey, 0)
-    end function
-
-    sub put_parking_ha(value)
-        acp_util.profile.writevalue main_key, value, park_ha_subkey
-    end sub
-
-    function get_parking_dec
-        dim def
-
-        if obs = "wise40" then
-            def = 66.0
+        err.Clear
+        on error resume next
+        set f = fso.OpenTextFile(jsonFile, 1)
+        json = f.readall
+        f.close
+        
+        if (err.number = 0) then
+            with createobject("ScriptControl")
+                .Language = "JScript"
+                with .Eval("(" + json + ")")
+					monitoring  = .Telescope.MonitoringEnabled
+                    parking_ha  = .Telescope.HourAngle
+                    parking_dec = .Telescope.Declination
+                end with
+            end with
         else
-            def = 45.0
+            err.Clear
+            wise_util.fatal "load_telescope_settings: Cannot open settings file: " & jsonFile
         end if
-        get_parking_dec = acp_util.profile.getvalue(main_key, park_dec_subkey, def)
-    end function
-
-    sub put_parking_dec(value)
-        acp_util.profile.writevalue main_key, value, park_dec_subkey
-    end sub
-
-    function get_monitoring
-        get_monitoring = monitoring
-    end function
-
-    sub put_monitoring(value)
-        monitoring = value
-    end sub
+        f = nothing
+		fso = nothing
+        on error goto 0
+    end sub 
 
         ]]>
         </script>

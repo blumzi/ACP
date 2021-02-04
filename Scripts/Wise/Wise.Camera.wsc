@@ -54,7 +54,7 @@
     dim wise_dli    : set wise_dli = createobject("Wise.Dli")
     dim acp_util    : set acp_util = createobject("ACP.Util")
     dim camera      : set camera = createobject("MaxIm.CCDCamera")
-    dim obs         : obs = wise_util.obs
+    dim obs         : obs = wise_util.observatory
 
     dim initialized : initialized = false
     dim label       : label = wise_util.mklabel("Camera")
@@ -74,7 +74,7 @@
             exit sub
         end if
 
-        const delta_temp = 3
+        const delta_temp = 2
         if abs(camera.temperature - camera.temperaturesetpoint) <= delta_temp then
             wise_util.info label & "temperature (" & int(camera.temperature) & ") is within " & delta_temp & _
                 " degrees of the setpoint (" & camera.temperaturesetpoint & ")"
@@ -84,16 +84,16 @@
             start_temp = int(camera.temperature)
             start_time = timer
 
-            wise_util.info label & "temperature: " & start_temp & " degrees, Waiting for the camera to cool by " & delta_temp & " degrees."
+            wise_util.info label & "Waiting for the camera to cool by " & delta_temp & " degrees."
             do 
-                wise_util.info label & "temperature: " & int(camera.temperature) & " degrees"
+                wise_util.info label & int(camera.temperature) & " degrees"
                 wise_util.sleep 5
                 current_delta_temp = int(abs(camera.temperature - start_temp))
             loop while (timer - start_time) < max_time and current_delta_temp < delta_temp
             if current_delta_temp < delta_temp then
                 wise_util.fatal label & "camera did not cool by " & delta_temp & " degrees within " & max_time & " seconds."
             else
-                wise_util.info label & "camera cooled down by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
+                wise_util.info label & "cooled by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
             end if
         end if
     end sub

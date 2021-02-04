@@ -58,10 +58,15 @@
     dim port_names(), device
     dim wise_util : set wise_util = createobject("Wise.Util")
     dim label     : label = wise_util.mklabel("Power")
+	dim initialized : initialized = false
 
     init
 
     sub init
+		if initialized then
+			exit sub
+		end if
+
         'on error resume next
         dim obs : obs = wise_util.observatory
 
@@ -80,6 +85,8 @@
         for i = 0 to ubound(port_names) - 1
             port_names(i) = device.GetSwitchName(i)
         next
+		'wise_util.info "Dli: initialized with " & ubound(port_names) & " ports"
+		initialized = true
     end sub
 
     sub power_on(port_name)

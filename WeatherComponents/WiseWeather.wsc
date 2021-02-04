@@ -140,7 +140,7 @@ Edit History:
 
     load_weather_settings
 
-    if weather_station_is_reliable and ClarityII is Nothing Then
+    if weather_station_is_reliable and ClarityII is Nothing then
         Set ClarityII = CreateObject("ClarityII.CloudSensorII")
     end if
 
@@ -176,7 +176,7 @@ Edit History:
     function put_Connected(newValue)
         connected = newValue
 
-        if newValue Then
+        if newValue then
             wise_util.trace " "
             wise_util.trace "Connected (observatory: " & obs & ", use_local_station: " & use_local_station & ")"
             wise_tele.check_limits
@@ -199,9 +199,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/temperature")
-        if is_success(response) Then
+        if is_success(response) then
             get_AmbientTemperature = response
-        elseif use_local_station Then
+        elseif use_local_station then
             get_AmbientTemperature = ClarityII.AmbientT
         end if
         wise_util.trace "get_AmbientTemperature => " & get_AmbientTemperature
@@ -219,7 +219,7 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/pressure")
-        if is_success(response) Then
+        if is_success(response) then
             get_BarometricPressure = response
         end if
         wise_util.trace "get_BarometricPressure => " & get_BarometricPressure
@@ -235,9 +235,9 @@ Edit History:
         dim response
 
         response =  wise_ascom.get_url("observingconditions/0/cloudcover")
-        if is_success(response)  Then
+        if is_success(response)  then
             get_Clouds = response
-        elseif use_local_station Then
+        elseif use_local_station then
             select case ClarityII.CloudCondition
                 case cloudClear
                     get_Clouds = 0.0
@@ -262,9 +262,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/dewpoint")
-        if is_success(response) Then
+        if is_success(response) then
             get_DewPoint = response
-        elseif use_local_station Then
+        elseif use_local_station then
             get_DewPoint = ClarityII.DewPointT
         end if
         wise_util.trace "get_DewPoint => " & get_DewPoint
@@ -300,9 +300,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/rainrate")
-        if is_success(response) Then
+        if is_success(response) then
             get_Precipitation = response
-        elseif use_local_station Then
+        elseif use_local_station then
             get_Precipitation = (ClarityII.RainCondition = rainRain)
         end if
         wise_util.trace "get_Precipitation => " & get_Precipitation
@@ -318,9 +318,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/humidity")
-        if is_success(response) Then
+        if is_success(response) then
             get_RelativeHumidity = response
-        elseif use_local_station Then
+        elseif use_local_station then
             get_RelativeHumidity = ClarityII.HumidityPercent
         end if
         wise_util.trace "get_RelativeHumidity => " & get_RelativeHumidity
@@ -337,9 +337,9 @@ Edit History:
     function get_Safe()
         get_Safe = WiseIsSafe
 
-        if not get_Safe And lastSafe Then                ' if this is a change from safe to unsafe
+        if not get_Safe And lastSafe then                ' if this is a change from safe to unsafe
             wise_util.warning("Safety: Wise became unsafe to operate!")
-        elseif get_safe and not lastSafe Then
+        elseif get_safe and not lastSafe then
             wise_util.info("Safety: Wise became safe to operate!")
         end if
         
@@ -357,9 +357,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/skytemperature")
-        if is_success(response)  Then
+        if is_success(response)  then
             get_SkyTemperature = response
-        elseif use_local_station Then
+        elseif use_local_station then
             get_SkyTemperature = ClarityII.RelSkyT
         end if
         wise_util.trace "get_SkyTemperature => " & get_SkyTemperature
@@ -377,7 +377,7 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/winddirection")
-        if is_success(response) Then
+        if is_success(response) then
             get_WindDirection = response
         end if
         wise_util.trace "get_WindDirection => " & get_WindDirection
@@ -409,9 +409,9 @@ Edit History:
         dim response
 
         response = wise_ascom.get_url("observingconditions/0/windspeed")
-        if is_success(response) Then
+        if is_success(response) then
             get_WindVelocity = MSToKnots(response)
-        elseif use_local_station Then
+        elseif use_local_station then
             select case ClarityII.WindUnits
                 case windUnitsKMH
                     get_WindVelocity = KMHToKnots(ClarityII.Wind)
@@ -440,7 +440,7 @@ Edit History:
         dim server : server = wise_ascom.server
                 
         seconds = datediff("s", lastIsSafeQueryTime, Now)
-        if (seconds < 60) Then
+        if (seconds < 60) then
             WiseIsSafe = lastSafe
             exit function
         end if
@@ -448,9 +448,9 @@ Edit History:
         response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-issafe&Parameters=")
         'wise_util.trace "[I] remote wise-issafe response '" & response & "', is_success: " & is_success(response) 
 
-        if not is_success(response) Then
+        if not is_success(response) then
             'wise_util.trace "[W] remote wise-issafe response '" & response & "'"
-            if use_local_station Then
+            if use_local_station then
                 dim wind_ok, day_ok, humidity_ok, clouds_ok, data_ok
                 dim msg : msg = "Safety (from " & obs & ") => "
 
@@ -488,11 +488,11 @@ Edit History:
                 WiseIsSafe = False
                 wise_util.trace "[W] Safety: (from " & obs & " (local station is not reliable) => not-safe"
             end if
-        elseif (response = "false") Then
+        elseif (response = "false") then
             WiseIsSafe = False
             'wise_util.trace "[I] remote wise-issafe response: '" & response & "' => wiseissafe = " & wiseissafe
             response = wise_ascom.put_url("safetymonitor/0/action", "Action=wise-unsafereasons&Parameters=")			
-            if response <> lastUnsafeReasons Then
+            if response <> lastUnsafeReasons then
                 lastUnsafeReasons = response
                 reasons = unsafereasons2array(response)
 
@@ -506,7 +506,7 @@ Edit History:
                     next
                 end if
             end if
-        elseif (response = "true") Then
+        elseif (response = "true") then
             WiseIsSafe = True
             'wise_util.trace "[I] (from " & server & ") safe"
         end if
@@ -526,7 +526,7 @@ Edit History:
         str = replace(str, "[", "")
         str = replace(str, "]", "")
         'wise_util.trace "unsafereasons2array: str '" & str & "'"
-        if instr(str, "HumanIntervention") Then
+        if instr(str, "HumanIntervention") then
             items = split(str, ";")
         else
             items = split(str, ",")
@@ -549,17 +549,17 @@ Edit History:
     end function
     
     sub load_weather_settings()
-        const jsonFile="c:\Program Files (x86)\ACP Obs Control\WiseSettings.json"
-        dim f, json
+        dim jsonFile : jsonFile = wise_util.settings_file
+        dim f, json, tf
+		dim fso : set fso = createobject("Scripting.FileSystemObject")
         
         err.Clear
         on error resume next
         set f = fso.OpenTextFile(jsonFile, 1)
         json = f.readall
         f.close
-        f = nothing
         
-        if (err.number = 0) then
+        if err.number = 0 then
             with createobject("ScriptControl")
                 .Language = "JScript"
                 with .Eval("(" + json + ")")
@@ -570,6 +570,8 @@ Edit History:
             err.Clear
             weather_station_is_reliable = false
         end if
+		f = nothing
+		fso = nothing
         on error goto 0
     end sub 
 
