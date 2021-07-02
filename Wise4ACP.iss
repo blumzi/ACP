@@ -27,24 +27,25 @@ AppPublisher={#MyAppPublisher}
 CreateAppDir=no
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputDir=C:\Users\Blumzi\Source\Repos\ACP
+;OutputDir=C:\Users\Blumzi\Source\Repos\ACP
 OutputBaseFilename=Wise4ACP
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+MissingRunOnceIdsWarning=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#AcpSrc}\Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "{#AcpSrc}\WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "{#AcpSrc}\WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit;                 Permissions: users-full
-Source: "{#AcpSrc}\Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "{#AcpSrc}\Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "{#AcpSrc}\Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "{#AcpSrc}\UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
-Source: "{#AcpSrc}\ACP-Weather.vbs";                                DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
+Source: "Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit;                 Permissions: users-full
+Source: "Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
+Source: "ACP-Weather.vbs";                                DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
 
 [Dirs]
 Name: "{#WiseScriptsDest}"; Permissions: users-full

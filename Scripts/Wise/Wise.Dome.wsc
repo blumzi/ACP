@@ -131,8 +131,9 @@
 		end if
 
 		dim link_strength : link_strength = dome.commandstring("Shutter_Link_Strength") 
-		if link_strength < 95 then
-			wise_util.fatal "Dome shutter link error", label & "link strength below 95%: " & link_strength & "%"
+        const minimal_link_strength = 75
+		if link_strength < minimal_link_strength then
+			wise_util.fatal "Dome shutter link error", label & "link strength below " & minimal_link_strength & "%: " & link_strength & "%"
 		else
 			wise_util.info label & "link strength: " & link_strength & "%."
 		end if
@@ -208,7 +209,6 @@
     sub get_shutter_to(target_state)
 
         if dome.shutterstatus = target_state then
-            wise_util.info label & "shutter is already " & shutter_state_to_str(target_state)
             exit sub
         end if
 
@@ -307,7 +307,7 @@
     end sub
 
     sub load_dome_settings()
-        const jsonFile="C:/Program Files (x86)/ACP Obs Control/WiseSettings.json"
+		dim jsonFile : jsonFile = wise_util.settings_file
         dim f, json
 		dim fso : set fso = createobject("Scripting.FileSystemObject")
 

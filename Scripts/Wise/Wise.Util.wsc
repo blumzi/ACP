@@ -52,6 +52,9 @@
             <method name="trace">
                 <parameter name="Message"/>
             </method>
+            <property name="settings_file">
+                <get/>
+            </property>
             <property name="hostname">
                 <get/>
             </property>
@@ -296,6 +299,10 @@
 		shell.run "taskkill /f /im " & task_image_pattern
 		set shell = nothing
 	end sub
+
+	function get_settings_file
+		get_settings_file = "c:/Program Files (x86)/ACP Obs Control/WiseSettings.json"
+	end function
 
         ]]>
         </script>

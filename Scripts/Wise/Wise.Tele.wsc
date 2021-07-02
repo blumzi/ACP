@@ -111,21 +111,37 @@
 	end sub
 
 	sub c28_slew_to_parking_position
-		parking_ra = acp_tele.siderealtime - parking_ha
-		wise_util.info label & "slewing to parking position: " & _
-			acp_util.Hours_HMS(parking_ra) & ", " & _
-			acp_util.Degrees_DMS(parking_dec), ":", ":", "" & " ..."
+		dim tstart, tmax
 
-		' Do we need to unslave the dome?
-        acp_tele.slewtocoordinates parking_ra, parking_dec
+		parking_ra = acp_tele.siderealtime - parking_ha
+		wise_util.info label & "slewing to parking position: " & acp_util.Hours_HMS(parking_ra) & ", " & acp_util.Degrees_DMS(parking_dec, ":", ":", "") & " ..."
+
+        acp_tele.slewtocoordinatesasync parking_ra, parking_dec
 
 		' wait for telescope to start slewing
+		tmax = 60		' one minute
+		tstart = timer
 		while not acp_tele.slewing
+			if timer - tstart > tmax then
+				'wise_util.fatal "c28_slew_to_parking_position", label & "did not start slewing within " & tmax & " seconds"
+				wise_util.info label & "did not start slewing within " & tmax & " seconds, aborting slew!"
+				acp_tele.abortslew
+				exit sub
+			end if
 			wise_util.sleep 2
 		wend
 
 		' wait for telescope to reach parking position
+		tmax = 60 * 5	' five minutes
+		tstart = timer
 		while acp_tele.slewing
+			if timer - tstart > tmax then
+				'wise_util.fatal "c28_slew_to_parking_position", "did not reach parking within " & tmax & " seconds"
+				wise_util.info label & "did not reach parking within " & tmax & " seconds, aborting slew!"
+				acp_tele.abortslew
+				wise_util.sleep 5
+				exit sub
+			end if
 			wise_util.sleep 5
 		wend
 
@@ -195,11 +211,16 @@
         '
         ' Example:    0:256:NoError,1:1024:NoError
         '
+		dim fso  : set fso = createobject("Scripting.FileSystemObject")
+		dim tmp  : tmp = fso.BuildPath(fso.GetSpecialFolder(2), fso.GetTempName())
         dim sh   : set sh = createobject ("WScript.Shell")
-        dim exec : set exec = sh.exec("C:\SEI\A2Read\A2Read\bin\Debug\A2Read.exe COM11 0 1 retry=15")
-        raw_reading = exec.stdout.ReadLine()
-        set sh = nothing
-        set exec = nothing
+
+        sh.run "cmd /c C:\SEI\A2Read\A2Read\bin\Debug\A2Read.exe COM11 0 1 retry=15 > " & tmp, 0, True
+        raw_reading = fso.OpenTextFile(tmp).ReadLine()
+		fso.DeleteFile(tmp)
+
+        set sh  = nothing
+        set fso = nothing
 
         reading = split(raw_reading, ",")           ' split the output at the comma
         if ubound(reading) <> 1 then                ' we should get two parts
@@ -329,39 +350,13 @@
 
         wise_util.trace msg & ", under limit"
 
-        dim parking_ra : parking_ra = acp_util.NowLST() - parking_ha
-        wise_util.trace label & "Sending telescope to parking position (" & _
-            acp_util.hours_hms(parking_ra) & ", " & _
-            acp_util.degrees_dms(parking_dec, ":", ":", "") & _
-            ")"
-
-        if acp_tele.slewing then
-            acp_tele.abortslew      ' abort any ongoing slew
-            wise_util.sleep 2
-        end if
-
-        parking = true
-        ' A synchronous slew would be risky, ACP calls us every minute and the parking may take longer
-        acp_tele.slewtocoordinatesasync parking_ra, parking_dec 
-        const interval = 1
-        max_seconds = 10
-        start_time = timer
-        elapsed = 0
-        while not acp_tele.slewing and elapsed < max_seconds
-            wise_util.trace label & "Waiting " & interval & " seconds for the telescope to start slewing ..."
-            wise_util.sleep interval
-            elapsed = int(timer - start_time)
-        wend
-
-        if not acp_tele.slewing then
-            wise_util.trace label & "[W] The telescope did not start slewing within " & elapsed & " seconds!"
-        end if
+		c28_slew_to_parking_position
 
     end sub
 
 
     sub load_telescope_settings()
-        const jsonFile="C:/Program Files (x86)/ACP Obs Control/WiseSettings.json"
+		dim jsonFile : jsonFile = wise_util.settings_file
         dim f, json
 		dim fso : set fso = createobject("Scripting.FileSystemObject")
 

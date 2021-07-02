@@ -101,26 +101,39 @@
     sub warm_up
         init_camera
 
-        if camera.cooleron then
-            camera.cooleron = false
-            wise_util.info label & "turned cooler off"
-        else
-            wise_util.info label & "cooler is off"
-        end if
+		'
+		' Code plagiated from AcquireSupport.wsc
+		'
+		dim z, tnow, tprev, i
+		if camera.cooleron then                                     ' Unless cooler is already off
+			if camera.cansettemperature then                        ' Try to do "nice" Shutdown
+				z = camera.temperaturesetpoint                      ' Remember this, as MaxIm remembers
+				wise_util.info label & "raising temperature... 10 min max"
+				tprev = -273.15                                     ' Init warming rate state
+				camera.temperaturesetpoint = 6.0                    ' Raise temperature to +6C
 
-        if camera.coolerpower = 0 then
-            wise_util.info label & "cooler power is 0%"
-            exit sub
-        end if
+				for i = 1 to 10                                     ' Take 10 minutes max...
+					tnow = camera.temperature
+					wise_util.info label & "cooler is now at " & acp_util.formatvar(camera.temperature, "0.0") & "C"
+					if tnow >= 4.0 then
+						exit for									' Warmed, can shut down
+					end if
 
-        if camera.coolerpower > 0 then
-            wise_util.info label & "cooler power is " & camera.coolerpower & "%, waiting to reach 0%"
-            do
-                wise_util.sleep 15
-                wise_util.info label & "cooler power " & camera.coolerpower & "%, temperature " & int(camera.temperature) & " degrees ..."
-            loop while camera.coolerpower <> 0
-        end if
-        wise_util.info label & "cooler power reached 0%, temperature " & int(camera.temperature) & " degrees"
+					' Wait at least 3 min so camera can start warming
+					if (i > 3) and ((tnow - tprev) < 3.0) then
+						exit for									' Warming rate < 0.05deg/sec, can shut down
+					end if
+					tprev = tnow
+					wise_util.sleep 60
+				next
+				camera.temperaturesetpoint = z                      ' Reset original setpoint for future
+			end if
+			camera.cooleron = false
+		end if
+
+		wise_util.sleep 5                                           ' Give MaxIm a chance to shutdown cooler
+		acp_util.cameraconnected = false                            ' Disconnect it from ACP
+		wise_util.sleep 5
     end sub
 
     function get_name
@@ -133,16 +146,15 @@
         end if
 
         if wise_dli.has_power("ccd") then
-            wise_util.info label & "Power is ON"
+            wise_util.info label & "power is ON"
         else
             wise_dli.power_on("ccd")
-            wise_util.info label & "Powered ON"
             wise_util.sleep 2
         end if
 
         if not acp_util.cameraconnected then
             acp_util.cameraconnected = true
-            wise_util.info label & "Activated MaxIm DL"
+            wise_util.info label & "activated MaxIm DL"
         end if
 
         if camera.linkenabled then
@@ -171,13 +183,17 @@
 
         if camera.linkenabled then
             camera.linkenabled = false
-            wise_util.info label & "Disabled MaxIm DL link"
+            wise_util.info label & "disabled MaxIm DL link, waiting 5 seconds ..."
+            wise_util.sleep 5
         end if
 
         if acp_util.cameraconnected then
             acp_util.cameraconnected = false
-            wise_util.info label & "Deactivated MaxIm DL"
+            wise_util.info label & "disconnected, waiting 5 seconds ..."
+            wise_util.sleep 5
         end if
+         
+        wise_util.task_kill "killing MaxIM DL ...", "MaxIm_DL.exe"
 
         if wise_dli.has_power("ccd") then
             wise_dli.power_off("ccd")

@@ -140,6 +140,7 @@
     <None Include=".git\refs\heads\master" />
     <None Include=".git\refs\remotes\origin\HEAD" />
     <None Include="ACP_TemporaryKey.pfx" />
+    <None Include="build.bat" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include=".git\objects\info\" />
@@ -281,6 +282,9 @@
   <ProjectExtensions>
     <VisualStudio AllowExistingFolder="true" />
   </ProjectExtensions>
+  <PropertyGroup>
+    <PreBuildEvent>"C:\Program Files (x86)\Inno Setup 6\iscc" /o${SolutionDir} ${SolutionDir}\Wise4ACP.iss</PreBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
