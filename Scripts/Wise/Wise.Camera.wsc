@@ -63,20 +63,20 @@
         init_camera
 
         if camera.cooleron then
-            wise_util.info label & "cooler is on"
+            camera_info "cooler is on"
         else
-            wise_util.info label & "turned cooler on"
+            camera_info "turned cooler on"
             camera.cooleron = true
         end if
 
         if camera.temperature <= camera.temperaturesetpoint then
-            wise_util.info label & "temperature (" & camera.temperature & ") is low enough (setpoint: " & camera.temperaturesetpoint & ")."
+            camera_info "temperature (" & camera.temperature & ") is low enough (setpoint: " & camera.temperaturesetpoint & ")."
             exit sub
         end if
 
         const delta_temp = 2
         if abs(camera.temperature - camera.temperaturesetpoint) <= delta_temp then
-            wise_util.info label & "temperature (" & int(camera.temperature) & ") is within " & delta_temp & _
+            camera_info "temperature (" & int(camera.temperature) & ") is within " & delta_temp & _
                 " degrees of the setpoint (" & camera.temperaturesetpoint & ")"
         else
             dim i, start_time, start_temp, current_delta_temp
@@ -84,16 +84,16 @@
             start_temp = int(camera.temperature)
             start_time = timer
 
-            wise_util.info label & "Waiting for the camera to cool by " & delta_temp & " degrees."
+            camera_info "Waiting for the camera to cool by " & delta_temp & " degrees."
             do 
-                wise_util.info label & int(camera.temperature) & " degrees"
+                camera_info int(camera.temperature) & " degrees"
                 wise_util.sleep 5
                 current_delta_temp = int(abs(camera.temperature - start_temp))
             loop while (timer - start_time) < max_time and current_delta_temp < delta_temp
             if current_delta_temp < delta_temp then
                 wise_util.fatal label & "camera did not cool by " & delta_temp & " degrees within " & max_time & " seconds."
             else
-                wise_util.info label & "cooled by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
+                camera_info "cooled by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
             end if
         end if
     end sub
@@ -108,13 +108,13 @@
 		if camera.cooleron then                                     ' Unless cooler is already off
 			if camera.cansettemperature then                        ' Try to do "nice" Shutdown
 				z = camera.temperaturesetpoint                      ' Remember this, as MaxIm remembers
-				wise_util.info label & "raising temperature... 10 min max"
+				camera_info "raising temperature to 6.0 degrees ... 10 min max"
 				tprev = -273.15                                     ' Init warming rate state
 				camera.temperaturesetpoint = 6.0                    ' Raise temperature to +6C
 
 				for i = 1 to 10                                     ' Take 10 minutes max...
 					tnow = camera.temperature
-					wise_util.info label & "cooler is now at " & acp_util.formatvar(camera.temperature, "0.0") & "C"
+					camera_info acp_util.formatvar(camera.temperature, "0.0") & " degrees"
 					if tnow >= 4.0 then
 						exit for									' Warmed, can shut down
 					end if
@@ -131,9 +131,9 @@
 			camera.cooleron = false
 		end if
 
+        camera_info "waiting 5 seconds ..."
 		wise_util.sleep 5                                           ' Give MaxIm a chance to shutdown cooler
-		acp_util.cameraconnected = false                            ' Disconnect it from ACP
-		wise_util.sleep 5
+        camera_info "warm_up done"
     end sub
 
     function get_name
@@ -145,25 +145,27 @@
             exit sub
         end if
 
-        if wise_dli.has_power("ccd") then
-            wise_util.info label & "power is ON"
-        else
-            wise_dli.power_on("ccd")
-            wise_util.sleep 2
+        if not wise_util.observatory = "wise40" then
+            if wise_dli.has_power("ccd") then
+                camera_info "power is ON"
+            else
+                wise_dli.power_on("ccd")
+                wise_util.sleep 2
+            end if
         end if
 
         if not acp_util.cameraconnected then
             acp_util.cameraconnected = true
-            wise_util.info label & "activated MaxIm DL"
+            camera_info "activated MaxIm DL"
         end if
 
         if camera.linkenabled then
-            wise_util.info label & "MaxIM DL link was already enabled"
+            camera_info "MaxIM DL link was already enabled"
         else
             camera.linkenabled = true
             wise_util.sleep 2
             if camera.linkenabled then
-                wise_util.info label & "enabled MaxIM DL link"
+                camera_info "enabled MaxIM DL link"
             else
                 wise_fatal label & "could not enable MaxIM DL link"
             end if
@@ -183,22 +185,28 @@
 
         if camera.linkenabled then
             camera.linkenabled = false
-            wise_util.info label & "disabled MaxIm DL link, waiting 5 seconds ..."
+            camera_info "disabled MaxIm DL link, waiting 5 seconds ..."
             wise_util.sleep 5
         end if
 
         if acp_util.cameraconnected then
             acp_util.cameraconnected = false
-            wise_util.info label & "disconnected, waiting 5 seconds ..."
+            camera_info "disconnected, waiting 5 seconds ..."
             wise_util.sleep 5
         end if
          
-        wise_util.task_kill "killing MaxIM DL ...", "MaxIm_DL.exe"
-
-        if wise_dli.has_power("ccd") then
-            wise_dli.power_off("ccd")
+        if not wise_util.observatory = "wise40" then
+            if wise_dli.has_power("ccd") then
+                wise_dli.power_off("ccd")
+            end if
         end if
 
+        wise_util.task_kill label & "killing MaxIM DL ...", "MaxIm_DL.exe"
+
+    end sub
+
+    sub camera_info(msg)
+        wise_util.info label & msg
     end sub
 
     ]]>

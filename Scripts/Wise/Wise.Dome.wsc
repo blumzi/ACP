@@ -67,7 +67,7 @@
             set dome = createobject("???")
         case "wise40"
             parking_tolerance = 2
-            set dome = createobject("ASCOM.Wise40.Dome")
+            set dome = createobject("ASCOM.AlpacaDynamic1.Dome")
     end select
 
     ' ASCOM shutter states
@@ -105,19 +105,19 @@
             wise_dli.power_on("dome")
             wise_util.sleep 5
 		else
-			wise_util.info label & "has power"
+			dome_info "has power"
         end if
 
-		wise_util.info label & "waiting 5 seconds for driver to settle ..."
+		dome_info "waiting 5 seconds for driver to settle ..."
 		wise_util.sleep 5
 
 		if dome.shutterstatus = targetState then
-			wise_util.info label & "shutter already " & shutter_state_to_str(targetState)
+			dome_info "shutter already " & shutter_state_to_str(targetState)
 			exit sub
 		end if
 
 		if not dome.athome then
-			wise_util.info label & "finding home ..."
+			dome_info "finding home ..."
 			dome.findhome
 				
 			c28_wait_for_slewing_to_start "find home for moving the shutter"
@@ -125,7 +125,7 @@
 		end if
 
 		if dome.athome then
-			wise_util.info label & "at home"
+			dome_info "at home"
 		else
 			wise_util.fatal "dome findhome error", label & "did not reach home"
 		end if
@@ -135,7 +135,7 @@
 		if link_strength < minimal_link_strength then
 			wise_util.fatal "Dome shutter link error", label & "link strength below " & minimal_link_strength & "%: " & link_strength & "%"
 		else
-			wise_util.info label & "link strength: " & link_strength & "%."
+			dome_info "link strength: " & link_strength & "%."
 		end if
 
 	end sub
@@ -213,10 +213,10 @@
         end if
 
         if target_state = shutterOpen then
-            wise_util.info label & "started opening the shutter"
+            dome_info "started opening the shutter"
             dome.openshutter
         elseif target_state = shutterClosed then
-            wise_util.info label & "started closing the shutter"
+            dome_info "started closing the shutter"
             dome.closeshutter
         end if
 
@@ -232,11 +232,11 @@
 					"Shutter did not finish slewing within " & max_seconds & " seconds"
 			end if
 
-			wise_util.info label & "shutter is " & shutter_state_to_str(state)
+			dome_info "shutter is " & shutter_state_to_str(state)
 			wise_util.sleep 10
 		wend
 
-		wise_util.info label & "shutter is now " & shutter_state_to_str(state)
+		dome_info "shutter is now " & shutter_state_to_str(state)
 
     end sub
 
@@ -284,17 +284,17 @@
 
             wise_util.sleep 5   ' let it start slewing
             while dome.slewing
-                wise_util.info label & "dome is at " & int(dome.azimuth) & " degrees ..."
+                dome_info "dome is at " & int(dome.azimuth) & " degrees ..."
                 wise_util.sleep 2
             wend
         end if
-        wise_util.info  label & "dome is parked at " & int(dome.azimuth) & " degrees"
+        dome_info "dome is parked at " & int(dome.azimuth) & " degrees"
     end sub
 
     sub unpark
         if dome.canpark and dome.atpark then
             dome.unpark
-            wise_util.info label & "unparked"
+            dome_info "unparked"
         end if
     end sub
 
@@ -333,6 +333,36 @@
         on error goto 0
     end sub 
 
+    '
+    ' Wise40
+    '
+    sub wise40_startup
+        if not dome.atpark then
+            dome.park
+            wise_util.sleep 5
+            while not dome.atpark
+                dome_info "at " & int(dome.azimuth) & " degrees ..."
+                wise_util.sleep 5
+            wend
+        end if
+
+        dome_info "at parking position"
+    end sub
+
+    sub wise40_shutdown
+        dome_info "slewing to parking pozition"
+        dome.park
+        wise_util.sleep 5
+        while not dome.atpark
+            dome_info "at " & int(dome.azimuth) & " degrees ..."
+            wise_util.sleep 5
+        wend
+        dome_info "at parking position " & int(dome.azimuth) & " degrees"
+    end sub
+
+    sub dome_info(msg)
+        wise_util.info label & msg
+    end sub
 
     ]]>
         </script>
