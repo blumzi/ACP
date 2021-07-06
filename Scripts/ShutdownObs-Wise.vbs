@@ -22,7 +22,7 @@ sub main
     wise_tele.shutdown
 	wise_camera.shutdown
 
-	wise_util.task_kill label & "killing FocusMax ...", "FocusMax*"
+	wise_util.task_kill label & "killing FocusMax ...", "FocusMax.exe"
 
 	wise_util.info " "
     wise_util.info label & "observatory '" & wise_util.observatory & "' has been shut down"
