@@ -39,9 +39,27 @@
         <public>
             <method name="startup"/>
             <method name="shutdown"/>
+            <method name="get_shutter_to">
+                <parameter name="shutter_state"/>
+            </method>
             <property name="parking_az">
                 <get />
                 <put />
+            </property>
+            <property name="shutterOpen">
+                <get />
+            </property>
+            <property name="shutterOpening">
+                <get />
+            </property>
+            <property name="shutterClosed">
+                <get />
+            </property>
+            <property name="shutterClosing">
+                <get />
+            </property>
+            <property name="shutterError">
+                <get />
             </property>
         </public>
 
@@ -71,11 +89,31 @@
     end select
 
     ' ASCOM shutter states
-    const shutterOpen = 0
-    const shutterClosed = 1
-    const shutterOpening = 2
-    const shutterClosing = 3
-    const shutterError = 4
+    const const_shutterOpen = 0
+    const const_shutterClosed = 1
+    const const_shutterOpening = 2
+    const const_shutterClosing = 3
+    const const_shutterError = 4
+            
+    function get_shutterOpen
+        get_shutterOpen = const_shutterOpen
+    end function   
+            
+    function get_shutterClosed
+        get_shutterClosed = const_shutterClosed
+    end function   
+
+    function get_shutterOpening
+        get_shutterOpening = const_shutterOpening
+    end function
+
+    function get_shutterClosing
+        get_shutterClosing = const_shutterClosing
+    end function
+
+    function get_shutterError
+        get_shutterError = const_shutterError
+    end function
 
 	const seconds_to_start_moving = 60
 
@@ -205,10 +243,13 @@
 
     end sub
 
-    ' Do whatever needed to get the shutter to the specified state
+    '
+    ' Do whatever is needed to get the shutter to the specified state
+    '
     sub get_shutter_to(target_state)
+        dim current_shutter_state : current_shutter_state = dome.shutterstatus
 
-        if dome.shutterstatus = target_state then
+        if current_shutter_state = target_state then
             exit sub
         end if
 
@@ -218,6 +259,9 @@
         elseif target_state = shutterClosed then
             dome_info "started closing the shutter"
             dome.closeshutter
+        else
+            dome_info "get_shutter_to: Bad target state: " & target_state
+            exit sub
         end if
 
 		while not dome.slewing
@@ -232,25 +276,27 @@
 					"Shutter did not finish slewing within " & max_seconds & " seconds"
 			end if
 
-			dome_info "shutter is " & shutter_state_to_str(state)
+            current_shutter_state = dome.shutterstatus
+			dome_info "shutter is " & shutter_state_to_str(current_shutter_state)
 			wise_util.sleep 10
 		wend
-
-		dome_info "shutter is now " & shutter_state_to_str(state)
+            
+        current_shutter_state = dome.shutterstatus
+		dome_info "shutter is now " & shutter_state_to_str(current_shutter_state)
 
     end sub
 
     function shutter_state_to_str(status)
         select case status
-            case shutterOpen
+            case const_shutterOpen
                 shutter_state_to_str = "open"
-            case shutterOpening
+            case const_shutterOpening
                 shutter_state_to_str = "opening"
-            case shutterClosed
+            case const_shutterClosed
                 shutter_state_to_str = "closed"
-            case shutterClosing
+            case const_shutterClosing
                 shutter_state_to_str = "closing"
-            case shutterError
+            case const_shutterError
                 shutter_state_to_str = "error"
         end select
     end function
@@ -350,14 +396,24 @@
     end sub
 
     sub wise40_shutdown
-        dome_info "slewing to parking pozition"
-        dome.park
-        wise_util.sleep 5
-        while not dome.atpark
-            dome_info "at " & int(dome.azimuth) & " degrees ..."
+        if dome.atpark then
+            dome_info "already parked"
+        else
+            dome_info "slewing to parking pozition"
+            dome.park
             wise_util.sleep 5
-        wend
-        dome_info "at parking position " & int(dome.azimuth) & " degrees"
+            while not dome.atpark
+                dome_info "at " & int(dome.azimuth) & " degrees ..."
+                wise_util.sleep 5
+            wend
+            dome_info "at parking position " & int(dome.azimuth) & " degrees"
+        end if
+
+        if dome.shutterstatus = shutterClosed then
+            dome_info "shutter already closed"
+        else
+            get_shutter_to shutterClosed
+        end if
     end sub
 
     sub dome_info(msg)
