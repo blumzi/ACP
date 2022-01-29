@@ -28,6 +28,10 @@ sub main
 
     wise_tele.startup
 
+    if obs = "wise40" then
+        wise_dome.get_shutter_to wise_dome.shutterOpen
+    end if
+
     wise_util.info label
     wise_util.info label & "observatory '" & obs & "' is now ready for operations"
     wise_util.info label

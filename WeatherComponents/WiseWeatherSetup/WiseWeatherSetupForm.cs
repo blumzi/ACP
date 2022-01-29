@@ -29,6 +29,11 @@ namespace WiseWeatherSetup
                 { "c28-pc", new Settings {
                     Observatory = "C28",
                     WeatherStationIsReliable = true,
+                    Server = new Server
+                    {
+                        Address = "dome-pc",
+                        Port = 11111,
+                    },
                     Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
                     Dome = new Dome { HomePosition = 233.0 },
                 } },
@@ -36,13 +41,23 @@ namespace WiseWeatherSetup
                 { "c18-pc", new Settings {
                     Observatory = "C18",
                     WeatherStationIsReliable = false,
+                    Server = new Server
+                    {
+                        Address = "dome-pc",
+                        Port = 11111,
+                    },
                     Telescope = new Telescope { MonitoringEnabled = true, AltLimit = 14.0, Declination = 45.0, HourAngle = 0.0, },
                     Dome = new Dome { HomePosition = 82.0 },
                 } },
 
                 { "dome-pc", new Settings {
                     Observatory = "Wise40",
-                    WeatherStationIsReliable = true,
+                    WeatherStationIsReliable = false,
+                    Server = new Server
+                    {
+                        Address = "127.0.0.1",
+                        Port = 11111,
+                    },
                     Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
                     Dome = new Dome { HomePosition = 90.0 },
                 } },
@@ -63,10 +78,12 @@ namespace WiseWeatherSetup
             catch (Exception)
             {
                 Settings def = defaultSettings[machine];
+                string serverAddress = (machine == "dome-pc") ? "127.0.0.1" : "dome-pc";
+
                 settings = new Settings()
                 {
                     Saved = DateTime.MinValue,
-                    Server = new Server { Address = "dome-pc", Port = 11111, },
+                    Server = new Server { Address = serverAddress, Port = 11111, },
                     Telescope = def.Telescope,
                     Dome = def.Dome,
                     WeatherStationIsReliable = def.WeatherStationIsReliable,

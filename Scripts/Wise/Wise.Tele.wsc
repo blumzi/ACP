@@ -99,6 +99,8 @@
 		select case obs
 			case "c28"
 				c28_shutdown
+			case "wise40"
+				wise40_shutdown
 		end select 
 
 	end sub
@@ -114,7 +116,7 @@
 		dim tstart, tmax
 
 		parking_ra = acp_tele.siderealtime - parking_ha
-		wise_util.info label & "slewing to parking position: " & acp_util.Hours_HMS(parking_ra) & ", " & acp_util.Degrees_DMS(parking_dec, ":", ":", "") & " ..."
+		tele_info "slewing to parking position: " & acp_util.Hours_HMS(parking_ra) & ", " & acp_util.Degrees_DMS(parking_dec, ":", ":", "") & " ..."
 
         acp_tele.slewtocoordinatesasync parking_ra, parking_dec
 
@@ -124,7 +126,7 @@
 		while not acp_tele.slewing
 			if timer - tstart > tmax then
 				'wise_util.fatal "c28_slew_to_parking_position", label & "did not start slewing within " & tmax & " seconds"
-				wise_util.info label & "did not start slewing within " & tmax & " seconds, aborting slew!"
+				tele_info "did not start slewing within " & tmax & " seconds, aborting slew!"
 				acp_tele.abortslew
 				exit sub
 			end if
@@ -137,7 +139,7 @@
 		while acp_tele.slewing
 			if timer - tstart > tmax then
 				'wise_util.fatal "c28_slew_to_parking_position", "did not reach parking within " & tmax & " seconds"
-				wise_util.info label & "did not reach parking within " & tmax & " seconds, aborting slew!"
+				tele_info "did not reach parking within " & tmax & " seconds, aborting slew!"
 				acp_tele.abortslew
 				wise_util.sleep 5
 				exit sub
@@ -145,7 +147,7 @@
 			wise_util.sleep 5
 		wend
 
-		wise_util.info label & "reached parking position"
+		tele_info "reached parking position"
 	end sub
 
 	'
@@ -168,7 +170,7 @@
 
 		if not acp_tele.connected then
 			acp_tele.connected = true
-			wise_util.info label & "connected"
+			tele_info "connected"
 		end if
 
 		if acp_tele.rightascension < 0.001 then
@@ -177,7 +179,7 @@
 
 		c28_slew_to_parking_position
 
-		wise_util.info label & "disconnecting (dome as well)"
+		tele_info "disconnecting (dome as well)"
 		acp_tele.connected = false
 
 		wise_dli.power_off("Telescope")
@@ -289,8 +291,7 @@
         '
         dim msg
         acp_tele.SyncToCoordinates ra_hours, dec_degrees
-        msg = "synced to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
-        wise_util.info label & msg
+        tele_info "synced to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
 
     end sub
 
@@ -383,6 +384,36 @@
 		fso = nothing
         on error goto 0
     end sub 
+
+    sub wise40_startup
+        if not acp_util.telescopeconnected then
+			wise_util.connect_and_wait acp_tele, 30
+        end if
+
+        if acp_tele.atpark then
+            acp_tele.unpark
+        else
+            tele_info "slewing to the parking position"
+            acp_tele.park
+            acp_tele.unpark
+        end if
+
+        tele_info "at parking position"
+    end sub
+
+    sub wise40_shutdown
+        if not acp_tele.atpark then
+            tele_info "parking"
+            acp_tele.park
+        end if
+        tele_info "at parking position"
+        acp_tele.connected = false
+        tele_info "disconnected"
+    end sub
+
+    sub tele_info(msg)
+        wise_util.info label & msg
+    end sub
 
         ]]>
         </script>
