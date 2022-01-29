@@ -135,7 +135,7 @@
 	' C28 specific startup procedure
 	'
     sub c28_startup
-		c28_get_ready_to_move_shutter shutterOpen
+		c28_get_ready_to_move_shutter const_shutterOpen
     end sub
 
 	sub c28_get_ready_to_move_shutter(targetState)
@@ -165,31 +165,32 @@
 		if dome.athome then
 			dome_info "at home"
 		else
-			wise_util.fatal "dome findhome error", label & "did not reach home"
+			dome_fatal "dome findhome error", "did not reach home"
 		end if
 
 		dim link_strength : link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
         const minimal_link_strength = 75
+
 		if link_strength < minimal_link_strength then
-			wise_util.info label & "link strength " & link_strength & "% is below minimal " & minimal_link_strength & "% "
+			dome_info "link strength " & link_strength & "% is below minimal " & minimal_link_strength & "% "
+
+		    dim start_wait : start_wait = timer
+		    dim elapsed : elapsed = timer - start_wait
+		    const max_seconds = 300
+		    while link_strength < minimal_link_strength and elapsed < max_seconds
+			    wise_util.sleep 2
+			    link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
+			    elapsed = timer - start_wait
+			    dome_info "link strength: " & link_strength & "% (still below minimal " & minimal_link_strength & "%)"
+		    wend
+
+		    if elapsed >= max_seconds and CInt(dome.commandstring("Shutter_Link_Strength")) < minimal_link_strength then
+			    dome_fatal "shutter link strength", "could not reach the minimal link strength (" & minimal_link_strength & _
+				    "%) within " & max_seconds & " seconds."
+		    end if
 		end if
 
-		dim start_wait : start_wait = timer
-		dim elapsed : elapsed = timer - start_wait
-		const max_seconds = 300
-		while link_strength < minimal_link_strength and elapsed < max_seconds
-			wise_util.sleep 2
-			link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
-			elapsed = timer - start_wait
-			wise_util.info label & "link strength: " & link_strength & "% (still below minimal " & minimal_link_strength & "%)"
-		wend
-
-		if elapsed >= max_seconds and CInt(dome.commandstring("Shutter_Link_Strength")) < minimal_link_strength then
-			wise_util.fatal label & "could not reach the minimal link strength (" & minimal_link_strength & _
-				"%) within " & max_seconds & " seconds."
-		end if
-
-		wise_util.info label & "link strength: " & link_strength & "%."
+		dome_info "link strength: " & link_strength & "%."
 
 	end sub
 
@@ -207,7 +208,7 @@
 		while not dome.slewing
 			elapsed = timer - start_slew
 			if elapsed > seconds_to_start_moving then
-				wise_util.fatal reason, label & "did not start slewing within " & elapsed & " seconds!"
+				dome_fatal reason, "did not start slewing within " & elapsed & " seconds!"
 				exit sub
 			end if
 			wise_util.sleep 2
@@ -247,7 +248,7 @@
             wise_util.sleep 2
             elapsed = timer - start_slew
             if elapsed > seconds_to_start_moving then
-                wise_util.fatal label & "did not start_slew slewing within " & seconds_to_start_moving & " seconds!"
+                dome_fatal "c28_slewtoazimuth", "did not start_slew slewing within " & seconds_to_start_moving & " seconds!"
                 exit sub
             end if
         wend
@@ -262,9 +263,6 @@
     ' Do whatever is needed to get the shutter to the specified state
     '
     sub get_shutter_to(target_state)
-        dim current_shutter_state : current_shutter_state = dome.shutterstatus
-
-		dim expected_state
 
         if dome.shutterstatus = target_state then
             exit sub
@@ -273,7 +271,6 @@
         if target_state = shutterOpen then
             dome_info "started opening the shutter"
             dome.openshutter
-			expected_state = shutterOpen
         elseif target_state = shutterClosed then
             dome_info "started closing the shutter"
             dome.closeshutter
@@ -284,22 +281,10 @@
 
 		' 
 		' The dome.openshutter and dome.closeshutter functions are BLOCKING
-		' They will not return unless the shutter has reache its target state
+		' They will not return unless the shutter has reached its target state
 		'
 
-'		dim start_moving : start_moving = timer
-'		const max_seconds = 300
-'		while not dome.shutterstatus = expected_state
-'			if timer - start_moving > max_seconds then
-'				wise_util.fatal label & "get_shutter_to(" & shutter_state_to_str(target_state) & ")", _
-'					"Shutter did not finish moving within " & max_seconds & " seconds"
-'			end if
-'
-'			wise_util.info label & "shutter is " & shutter_state_to_str(state)
-'			wise_util.sleep 10
-'		wend
-
-		wise_util.info label & "shutter is now " & shutter_state_to_str(dome.shutterstatus)
+		dome_info "shutter is now " & shutter_state_to_str(dome.shutterstatus)
 
     end sub
 
@@ -435,6 +420,10 @@
 
     sub dome_info(msg)
         wise_util.info label & msg
+    end sub
+
+    sub dome_fatal(reason, msg)
+        wise_util.fatal reason, label & msg
     end sub
 
     ]]>
