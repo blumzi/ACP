@@ -53,8 +53,7 @@
     dim wise_util   : set wise_util = createobject("Wise.Util")
     dim wise_dli    : set wise_dli = createobject("Wise.Dli")
     dim acp_util    : set acp_util = createobject("ACP.Util")
-    dim camera      : set camera = createobject("MaxIm.CCDCamera")
-    dim obs         : obs = wise_util.observatory
+    dim camera
 
     dim initialized : initialized = false
     dim label       : label = wise_util.mklabel("Camera")
@@ -152,6 +151,8 @@
             wise_util.sleep 2
         end if
 
+		set camera = createobject("MaxIm.CCDCamera")
+
         if not acp_util.cameraconnected then
             acp_util.cameraconnected = true
             wise_util.info label & "activated MaxIm DL"
@@ -191,13 +192,13 @@
             acp_util.cameraconnected = false
             wise_util.info label & "disconnected, waiting 5 seconds ..."
             wise_util.sleep 5
-        end if
-         
-        wise_util.task_kill "killing MaxIM DL ...", "MaxIm_DL.exe"
+        end if        
 
         if wise_dli.has_power("ccd") then
             wise_dli.power_off("ccd")
-        end if
+        end if 
+
+        wise_util.task_kill label & "killing MaxIM DL ...", "MaxIm_DL.exe"
 
     end sub
 
