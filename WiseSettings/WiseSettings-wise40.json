@@ -1,0 +1,19 @@
+{
+  "Saved": "2021-07-26T10:06:25.228019+03:00",
+  "Observatory": "Wise40",
+  "Machine": "dome-pc",
+  "Server": {
+    "Address": "127.0.0.1",
+    "Port": 11111
+  },
+  "WeatherStationIsReliable": false,
+  "Telescope": {
+    "MonitoringEnabled": false,
+    "AltLimit": 14.0,
+    "HourAngle": 0.0,
+    "Declination": 66.0
+  },
+  "Dome": {
+    "HomePosition": 90.0
+  }
+}

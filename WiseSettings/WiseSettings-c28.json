@@ -1,0 +1,19 @@
+{
+  "Saved": "2021-01-28T09:47:53.95446+02:00",
+  "Observatory": "C28",
+  "Machine": "c28-pc",
+  "Server": {
+    "Address": "dome-pc",
+    "Port": 11111
+  },
+  "WeatherStationIsReliable": true,
+  "Telescope": {
+    "MonitoringEnabled": true,
+    "AltLimit": 14.0,
+    "HourAngle": 0.0,
+    "Declination": -45.0
+  },
+  "Dome": {
+    "HomePosition": 233.0
+  }
+}

@@ -101,6 +101,7 @@
     <Content Include="Scripts\FS2_Sync.vbs" />
     <Content Include="Scripts\ShutdownObs-Wise.vbs" />
     <Content Include="Scripts\StartupObs-Wise.vbs" />
+    <Content Include="Scripts\Wise\README.txt" />
     <Content Include="Scripts\Wise\Wise.Ascom.wsc" />
     <Content Include="Scripts\Wise\Wise.Camera.wsc" />
     <Content Include="Scripts\Wise\Wise.Dli.wsc" />
@@ -141,6 +142,10 @@
     <None Include=".git\refs\remotes\origin\HEAD" />
     <None Include="ACP_TemporaryKey.pfx" />
     <None Include="build.bat" />
+    <None Include="Scripts\Wise\register.bat" />
+    <None Include="WiseSettings\WiseSettings-c28.json" />
+    <None Include="WiseSettings\WiseSettings-h80.json" />
+    <None Include="WiseSettings\WiseSettings-wise40.json" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include=".git\objects\info\" />

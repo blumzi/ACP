@@ -117,9 +117,9 @@
 
 	const seconds_to_start_moving = 60
 
-	'
-	' Generic dome startup procedure
-	'
+	'---------------------
+	' Generic dome section
+	'---------------------
     sub startup
         select case obs
             case "c28"
@@ -128,97 +128,11 @@
                 c18_startup
             case "wise40"
                 wise40_startup
+            case "h80"
+                h80_startup
         end select
-    end sub
+    end sub            
 
-	'
-	' C28 specific startup procedure
-	'
-    sub c28_startup
-		c28_get_ready_to_move_shutter const_shutterOpen
-    end sub
-
-	sub c28_get_ready_to_move_shutter(targetState)
-
-		if wise_dli.has_power("dome") then
-			wise_dli.power_off("dome")
-			wise_util.sleep 5
-		end if
-		wise_dli.power_on("dome")
-
-		dome_info "waiting 5 seconds for driver to settle ..."
-		wise_util.sleep 5
-
-		if dome.shutterstatus = targetState then
-			dome_info "shutter already " & shutter_state_to_str(targetState)
-			exit sub
-		end if
-
-		if not dome.athome then
-			dome_info "finding home ..."
-			dome.findhome
-				
-			c28_wait_for_slewing_to_start "find home for moving the shutter"
-			c28_wait_for_slewing_to_end
-		end if
-
-		if dome.athome then
-			dome_info "at home"
-		else
-			dome_fatal "dome findhome error", "did not reach home"
-		end if
-
-		dim link_strength : link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
-        const minimal_link_strength = 75
-
-		if link_strength < minimal_link_strength then
-			dome_info "link strength " & link_strength & "% is below minimal " & minimal_link_strength & "% "
-
-		    dim start_wait : start_wait = timer
-		    dim elapsed : elapsed = timer - start_wait
-		    const max_seconds = 300
-		    while link_strength < minimal_link_strength and elapsed < max_seconds
-			    wise_util.sleep 2
-			    link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
-			    elapsed = timer - start_wait
-			    dome_info "link strength: " & link_strength & "% (still below minimal " & minimal_link_strength & "%)"
-		    wend
-
-		    if elapsed >= max_seconds and CInt(dome.commandstring("Shutter_Link_Strength")) < minimal_link_strength then
-			    dome_fatal "shutter link strength", "could not reach the minimal link strength (" & minimal_link_strength & _
-				    "%) within " & max_seconds & " seconds."
-		    end if
-		end if
-
-		dome_info "link strength: " & link_strength & "%."
-
-	end sub
-
-	sub c28_wait_for_slewing_to_end
-		wise_util.sleep 2
-		while dome.slewing
-			wise_util.sleep 5
-		wend
-	end sub
-
-	sub c28_wait_for_slewing_to_start(reason)
-		dim elapsed
-		dim start_slew : start_slew = timer
-
-		while not dome.slewing
-			elapsed = timer - start_slew
-			if elapsed > seconds_to_start_moving then
-				dome_fatal reason, "did not start slewing within " & elapsed & " seconds!"
-				exit sub
-			end if
-			wise_util.sleep 2
-		wend
-	end sub
-
-
-    '
-    ' Generic shutdown procedure
-    '
     sub shutdown
             select case obs
             case "c28"
@@ -227,38 +141,19 @@
                 c18_shutdown
             case "wise40"
                 wise40_shutdown
+            case "h80"
+                h80_shutdown
             end select
     end sub
 
-	'
-	' C28-specific startup procedure
-	'
-    sub c28_shutdown
-		c28_get_ready_to_move_shutter shutterClosed
-        get_shutter_to(shutterClosed)
+    sub dome_info(msg)
+        wise_util.info label & msg
     end sub
 
-
-    sub c28_slewtoazimuth(az)
-        dim start_slew : start_slew = timer
-        dim elapsed    : elapsed = 0
-
-        dome.slewtoazimuth(az)
-        while not dome.slewing
-            wise_util.sleep 2
-            elapsed = timer - start_slew
-            if elapsed > seconds_to_start_moving then
-                dome_fatal "c28_slewtoazimuth", "did not start_slew slewing within " & seconds_to_start_moving & " seconds!"
-                exit sub
-            end if
-        wend
-
-        while dome.slewing
-            wise_util.sleep 2
-        wend
-
+    sub dome_fatal(reason, msg)
+        wise_util.fatal reason, label & msg
     end sub
-
+            
     '
     ' Do whatever is needed to get the shutter to the specified state
     '
@@ -354,6 +249,9 @@
         parking_az = value
     end sub
 
+    '
+    ' Loads dome parameters from the WiseSettings.json file
+    '
     sub load_dome_settings()
 		dim jsonFile : jsonFile = wise_util.settings_file
         dim f, json
@@ -380,10 +278,132 @@
 		fso = nothing
         on error goto 0
     end sub 
+    '----------------------------
+	' End of generic dome section
+	'----------------------------
 
-    '
-    ' Wise40
-    '
+
+	'---------------------
+	' C28 specific section
+	'---------------------
+    sub c28_startup
+		c28_get_ready_to_move_shutter const_shutterOpen
+    end sub
+
+	sub c28_get_ready_to_move_shutter(targetState)
+
+		if wise_dli.has_power("dome") then
+			wise_dli.power_off("dome")
+			wise_util.sleep 5
+		end if
+		wise_dli.power_on("dome")
+
+		dome_info "waiting 5 seconds for driver to settle ..."
+		wise_util.sleep 5
+
+		if dome.shutterstatus = targetState then
+			dome_info "shutter already " & shutter_state_to_str(targetState)
+			exit sub
+		end if
+
+		if not dome.athome then
+			dome_info "finding home ..."
+			dome.findhome
+				
+			c28_wait_for_slewing_to_start "find home for moving the shutter"
+			c28_wait_for_slewing_to_end
+		end if
+
+		if dome.athome then
+			dome_info "at home"
+		else
+			dome_fatal "dome findhome error", "did not reach home"
+		end if
+
+		dim link_strength : link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
+        const minimal_link_strength = 75
+
+		if link_strength < minimal_link_strength then
+			dome_info "link strength " & link_strength & "% is below minimal " & minimal_link_strength & "% "
+
+		    dim start_wait : start_wait = timer
+		    dim elapsed : elapsed = timer - start_wait
+		    const max_seconds = 300
+		    while link_strength < minimal_link_strength and elapsed < max_seconds
+			    wise_util.sleep 2
+			    link_strength = CInt(dome.commandstring("Shutter_Link_Strength"))
+			    elapsed = timer - start_wait
+			    dome_info "link strength: " & link_strength & "% (still below minimal " & minimal_link_strength & "%)"
+		    wend
+
+		    if elapsed >= max_seconds and CInt(dome.commandstring("Shutter_Link_Strength")) < minimal_link_strength then
+			    dome_fatal "shutter link strength", "could not reach the minimal link strength (" & minimal_link_strength & _
+				    "%) within " & max_seconds & " seconds."
+		    end if
+		end if
+
+		dome_info "link strength: " & link_strength & "%."
+
+	end sub
+
+	sub c28_wait_for_slewing_to_end
+		wise_util.sleep 2
+		while dome.slewing
+			wise_util.sleep 5
+		wend
+	end sub
+
+	sub c28_wait_for_slewing_to_start(reason)
+		dim elapsed
+		dim start_slew : start_slew = timer
+
+		while not dome.slewing
+			elapsed = timer - start_slew
+			if elapsed > seconds_to_start_moving then
+				dome_fatal reason, "did not start slewing within " & elapsed & " seconds!"
+				exit sub
+			end if
+			wise_util.sleep 2
+		wend
+	end sub
+
+
+    sub c28_shutdown
+        dome_info 'Telling ACP to Unslave the dome ...'
+        acp_util.Dome.Slaved = false
+		c28_get_ready_to_move_shutter shutterClosed
+        get_shutter_to(shutterClosed)
+    end sub
+
+
+    sub c28_slewtoazimuth(az)
+        dim start_slew : start_slew = timer
+        dim elapsed    : elapsed = 0
+
+        dome.slewtoazimuth(az)
+        while not dome.slewing
+            wise_util.sleep 2
+            elapsed = timer - start_slew
+            if elapsed > seconds_to_start_moving then
+                dome_fatal "c28_slewtoazimuth", "did not start_slew slewing within " & seconds_to_start_moving & " seconds!"
+                exit sub
+            end if
+        wend
+
+        while dome.slewing
+            wise_util.sleep 2
+        wend
+
+    end sub
+    '----------------------------
+	' End of c28 specific section
+	'----------------------------
+
+
+
+    '-------------------------
+    ' Wise40 specific section
+    '-------------------------
     sub wise40_startup
         if not dome.atpark then
             dome.park
@@ -418,13 +438,25 @@
         end if
     end sub
 
-    sub dome_info(msg)
-        wise_util.info label & msg
+    '-------------------------------
+    ' End of Wise40 specific section
+    '-------------------------------
+
+    '-----------------------
+    ' H80 specific section
+    '-----------------------
+
+    sub h80_startup
+            dome_info 'h80 startup: TBD'
     end sub
 
-    sub dome_fatal(reason, msg)
-        wise_util.fatal reason, label & msg
+    sub h80_shutdown
+            dome_info 'h80 shutdown: TBD'
     end sub
+
+    '-------------------------------
+    ' End of H80 specific section
+    '-------------------------------
 
     ]]>
         </script>

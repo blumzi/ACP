@@ -1,0 +1,19 @@
+{
+  "Saved": "",
+  "Observatory": "H80",
+  "Machine": "h80-pc",
+  "Server": {
+    "Address": "dome-pc",
+    "Port": 11111
+  },
+  "WeatherStationIsReliable": false,
+  "Telescope": {
+    "MonitoringEnabled": false,
+    "AltLimit": 14.0,
+    "HourAngle": 0.0,
+    "Declination": -45.0
+  },
+  "Dome": {
+    "HomePosition": 0.0
+  }
+}

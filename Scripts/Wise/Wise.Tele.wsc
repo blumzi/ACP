@@ -61,9 +61,9 @@
     dim parking_ha, parking_dec, alt_limit
 
 
-	'
-	' Generic startup
-	'
+	'----------------
+	' Generic section
+	'----------------
     sub startup
 		select case obs
 			case "c28"
@@ -72,12 +72,73 @@
 				c18_startup
 			case "wise40"
 				wise40_startup
+			case "h80"
+				h80_startup
 		end select
     end sub
 
-	'
-	' C28 specific startup
-	'
+
+    sub shutdown
+		select case obs
+			case "c28"
+				c28_shutdown
+			case "wise40"
+				wise40_shutdown
+			case "h80"
+				h80_shutdown
+		end select 
+	end sub
+
+
+    sub tele_info(msg)
+        wise_util.info label & msg
+    end sub
+            
+
+	sub slew_to_parking_position
+		select case obs
+			case "c28"
+				c28_slew_to_parking_position
+		end select 
+	end sub
+            
+
+    sub load_telescope_settings()
+		dim jsonFile : jsonFile = wise_util.settings_file
+        dim f, json
+		dim fso : set fso = createobject("Scripting.FileSystemObject")
+
+        err.Clear
+        on error resume next
+        set f = fso.OpenTextFile(jsonFile, 1)
+        json = f.readall
+        f.close
+        
+        if (err.number = 0) then
+            with createobject("ScriptControl")
+                .Language = "JScript"
+                with .Eval("(" + json + ")")
+					monitoring  = .Telescope.MonitoringEnabled
+                    parking_ha  = .Telescope.HourAngle
+                    parking_dec = .Telescope.Declination
+                end with
+            end with
+        else
+            err.Clear
+            wise_util.fatal "load_telescope_settings: Cannot open settings file: " & jsonFile
+        end if
+        f = nothing
+		fso = nothing
+        on error goto 0
+    end sub 
+	'--------------------
+	' End generic section
+	'--------------------
+
+
+	'---------------------
+	' C28 specific section
+	'---------------------
 	sub c28_startup
         if not wise_dli.has_power("Telescope") then
             wise_dli.power_on("Telescope")
@@ -89,27 +150,6 @@
         end if
 
 		c28_sync_to_absolute_encoders
-	end sub
-
-	'
-	' Generic shutdown routine
-	'
-    sub shutdown
-
-		select case obs
-			case "c28"
-				c28_shutdown
-			case "wise40"
-				wise40_shutdown
-		end select 
-
-	end sub
-
-	sub slew_to_parking_position
-		select case obs
-			case "c28"
-				c28_slew_to_parking_position
-		end select 
 	end sub
 
 	sub c28_slew_to_parking_position
@@ -150,9 +190,7 @@
 		tele_info "reached parking position"
 	end sub
 
-	'
-	' C28 specific routine
-	'
+
 	sub c28_shutdown
 		'
 		' The FS2 cannot Park, so:
@@ -354,37 +392,14 @@
 		c28_slew_to_parking_position
 
     end sub
+    '----------------------------
+    ' End of c28 specific section
+    '----------------------------
 
 
-    sub load_telescope_settings()
-		dim jsonFile : jsonFile = wise_util.settings_file
-        dim f, json
-		dim fso : set fso = createobject("Scripting.FileSystemObject")
-
-        err.Clear
-        on error resume next
-        set f = fso.OpenTextFile(jsonFile, 1)
-        json = f.readall
-        f.close
-        
-        if (err.number = 0) then
-            with createobject("ScriptControl")
-                .Language = "JScript"
-                with .Eval("(" + json + ")")
-					monitoring  = .Telescope.MonitoringEnabled
-                    parking_ha  = .Telescope.HourAngle
-                    parking_dec = .Telescope.Declination
-                end with
-            end with
-        else
-            err.Clear
-            wise_util.fatal "load_telescope_settings: Cannot open settings file: " & jsonFile
-        end if
-        f = nothing
-		fso = nothing
-        on error goto 0
-    end sub 
-
+    '------------------------
+    ' Wise40 specific section
+    '------------------------
     sub wise40_startup
         if not acp_util.telescopeconnected then
 			wise_util.connect_and_wait acp_tele, 30
@@ -410,10 +425,23 @@
         acp_tele.connected = false
         tele_info "disconnected"
     end sub
+    '-------------------------------
+    ' End of Wise40 specific section
+    '-------------------------------
 
-    sub tele_info(msg)
-        wise_util.info label & msg
+    '---------------------
+    ' H80 specific section
+    '---------------------
+    sub h80_startup
+        tele_info 'H80 startup (TBD)'
     end sub
+
+    sub h80_shutdown
+        tele_info 'H80 shutdown (TBD)'
+    end sub
+    '----------------------------
+    ' End of H80 specific section
+    '----------------------------
 
         ]]>
         </script>

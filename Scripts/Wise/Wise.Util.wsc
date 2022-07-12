@@ -260,6 +260,8 @@
             get_observatory = "c28"
         elseif hostname = "dome-pc" then
             get_observatory = "wise40"
+        elseif hostname = "h80-pc" then
+            get_observatory = "h80"
         end if
     end function
 
