@@ -61,6 +61,18 @@ namespace WiseWeatherSetup
                     Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
                     Dome = new Dome { HomePosition = 90.0 },
                 } },
+
+                { "h80-pc", new Settings {
+                    Observatory = "H80",
+                    WeatherStationIsReliable = false,
+                    Server = new Server
+                    {
+                        Address = "132.66.65.9",
+                        Port = 11111,
+                    },
+                    Telescope = new Telescope { MonitoringEnabled = false, AltLimit = 14.0, Declination = 66.0, HourAngle = 0.0, },
+                    Dome = new Dome { HomePosition = 90.0 },
+                } },
             };
 
         public Form()
@@ -78,7 +90,7 @@ namespace WiseWeatherSetup
             catch (Exception)
             {
                 Settings def = defaultSettings[machine];
-                string serverAddress = (machine == "dome-pc") ? "127.0.0.1" : "dome-pc";
+                string serverAddress = (machine == "dome-pc") ? "127.0.0.1" : "132.66.65.9";
 
                 settings = new Settings()
                 {
