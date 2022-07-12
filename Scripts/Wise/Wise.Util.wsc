@@ -172,6 +172,12 @@
         today = acp_util.FormatVar(utc, "yyyy-mm-dd")
 
         folder = "c:\Wise\Logs\" &  today
+        if not fso.FolderExists("c:\Wise") then
+            fso.CreateFolder("c:\Wise")
+        end if
+        if not fso.FolderExists("c:\Wise\Logs") then
+            fso.CreateFolder("c:\Wise\Logs")
+        end if
         if not fso.FolderExists(folder) then
             fso.CreateFolder(folder)
         end if
