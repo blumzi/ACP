@@ -5,6 +5,7 @@
 #define MyAppVersion          "1.0"
 #define MyAppPublisher        "Wise Observatory Software"
 #define AcpDest               "C:\Program Files (x86)\ACP Obs Control\"
+#define WiseSettingsDest      "C:\Program Files (x86)\ACP Obs Control\WiseSettings"
 #define ScriptsDest           "C:\Program Files (x86)\ACP Obs Control\Scripts\"
 #define WiseScriptsDest       "C:\Program Files (x86)\ACP Obs Control\Scripts\Wise\"
 #define WeatherComponentsDest "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\"
@@ -45,6 +46,7 @@ Source: "Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerD
 Source: "Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "Scripts\FS2_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
+Source: "WiseSettings\*";                                 DestDir: "{#WiseSettingsDest}";      Flags: ignoreversion;                                 Permissions: users-full
 Source: "ACP-Weather.vbs";                                DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
 
 [Dirs]
