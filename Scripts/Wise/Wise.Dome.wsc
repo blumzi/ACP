@@ -369,7 +369,7 @@
 
 
     sub c28_shutdown
-        dome_info 'Telling ACP to Unslave the dome ...'
+        dome_info "Telling ACP to Unslave the dome ..."
         acp_util.Dome.Slaved = false
 		c28_get_ready_to_move_shutter shutterClosed
         get_shutter_to(shutterClosed)
@@ -447,11 +447,11 @@
     '-----------------------
 
     sub h80_startup
-            dome_info 'h80 startup: TBD'
+            dome_info "h80 startup: TBD"
     end sub
 
     sub h80_shutdown
-            dome_info 'h80 shutdown: TBD'
+            dome_info "h80 shutdown: TBD"
     end sub
 
     '-------------------------------
