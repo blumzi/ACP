@@ -73,10 +73,9 @@
         if obs = "c18" or obs = "c28" then
             set device = createobject("ASCOM.DigitalLoggers.Switch")
             if not isobject(device) then
-                fatal "Wise.Dli.init: cannot createobject(ASCOM.DigitalLoggers.Switch)"
+                dli_fatal "Wise.Dli.init: cannot createobject(ASCOM.DigitalLoggers.Switch)"
             end if
         else
-            set device = nothing
             exit sub
         end if
 
@@ -85,7 +84,7 @@
         for i = 0 to ubound(port_names) - 1
             port_names(i) = device.GetSwitchName(i)
         next
-		'wise_util.info "Dli: initialized with " & ubound(port_names) & " ports"
+		'dli_info "initialized with " & ubound(port_names) & " ports"
 		initialized = true
     end sub
 
@@ -112,9 +111,9 @@
             if elapsed > 0 then
                 msg = msg & " in " & elapsed & " seconds"
             end if
-            wise_util.info msg
+            dli_info msg
         else
-            wise_util.fatal label & "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
+            dli_fatal "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
         end if
     end sub
 
@@ -136,14 +135,14 @@
         loop
 
         if device.getswitch(id) then
-            wise_util.fatal label & "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
+            dli_fatal "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
         else
             dim elapsed : elapsed = int(timer - start_time)
             dim msg     : msg = label & "powered '" & port_name & "' OFF"
             if elapsed > 0 then
                 msg = msg & " in " & elapsed & " seconds"                
             end if
-            wise_util.info msg
+            dli_info msg
         end if
     end sub
 
@@ -177,6 +176,13 @@
         next
     end function
 
+    sub dli_info(msg)
+        wise_util.info label & msg
+    end sub
+
+    sub dli_fatal(msg)
+            wise_util.fatal label & msg
+    end sub
 
     ]]>
 		</script>
