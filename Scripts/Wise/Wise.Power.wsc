@@ -1,0 +1,192 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+    A wrapper to simplify the access to an ASCOM.{DigitalLoggers|Gude8211}.Switch object
+    ==================================================
+
+    Script:         Wise.Power.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This script provides a Wise.Power class which simplifies the
+                    access to an  ASCOM.{DigitalLoggers|Gude8211}.Switch object
+                    
+    Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
+                    provides ACP and its scripts with Weather information. This component
+                    is responsible for providing the interface with a weather sensor. You
+                    May use the ASCOM Serial device to communicate via RS-232 or if the 
+                    weather sensor has an ActiveX/Scriptable interface, you may create an
+                    instance of the object, and call directly into that interface.
+                    
+    Edit History:
+        08-May-2020   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="false" ?>
+		<registration
+            progid="Wise.Power" 
+            classid="{2865e979-4692-4ab6-8314-16d25db3fc37}"
+            description="A wrapper around the ASCOM.{DigitalLoggers.|Gude8211}Switch" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="power_on">
+                <parameter name="PortName"/>
+			</method>
+			<method name="power_off">
+                <parameter name="PortName"/>
+			</method>
+			<method name="has_power">
+                <parameter name="PortName"/>
+			</method>
+			<method name="power_cycle">
+                <parameter name="PortName"/>
+			</method>
+		</public>
+
+		<script language="VBScript">
+
+    <![CDATA[
+
+    dim port_names(), device
+    dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim initialized : initialized = false
+    dim label
+
+    init
+
+    sub init
+		if initialized then
+			exit sub
+		end if
+
+        'on error resume next
+        dim obs : obs = wise_util.observatory
+        dim device_id
+
+        if obs = "c18" or obs = "c28" then
+            label = wise_util.mklabel("Power(Dli)")
+            device_id = "ASCOM.DigitalLoggers.Switch"
+        elseif obs = "h80" then
+            label = wise_util.mklabel("Power(Gude)")
+            device_id = "ASCOM.Gude8211.Switch"
+        else
+            exit sub
+        end if
+
+        set device = createobject(device_id)
+        if not isobject(device) then
+            wise_util.fatal "Wise.Power.init", "cannot createobject(" & device_id & ")"
+        end if
+
+        device.Connected = true
+        redim port_names(device.MaxSwitch)
+        for i = 0 to ubound(port_names) - 1
+            port_names(i) = device.GetSwitchName(i)
+            ' wise_util.info "Power: port_names(" & i & "): [" & port_names(i) & "]"
+        next
+		' wise_util.info "Power: initialized with " & ubound(port_names) & " ports"
+		initialized = true
+    end sub
+
+    sub power_on(port_name)
+        if isempty(device) then
+            exit sub
+        end if
+
+        dim start_time, id
+        const timeout = 20
+
+        port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
+
+        id = port_id(port_name)
+        ' wise_util.info "power_on(" & port_name & "), id: " & id & ", state: " & device.getswitch(id)
+        device.setswitch id, true
+        start_time = timer()
+        do while not device.getswitch(id) and (timer() - start_time) <= timeout
+            wise_util.sleep 1
+        loop
+
+        if device.getswitch(id) then
+            dim elapsed : elapsed = int(timer() - start_time)
+            dim msg     : msg = label & "powered '" & port_name & "' ON"
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"
+            end if
+            wise_util.info msg
+        else
+            wise_util.fatal label, "Couldn't power '" & port_name & "' ON within " & timeout & " seconds"
+        end if
+    end sub
+
+    sub power_off(port_name)
+        if isempty(device) then
+            exit sub
+        end if
+
+        dim start_time, id
+        const timeout = 20
+
+        port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
+
+        id = port_id(port_name)
+        device.setswitch id, false
+        start_time = timer()
+        do while device.getswitch(id) and (timer() - start_time) <= timeout
+            wise_util.sleep 1
+        loop
+
+        if device.getswitch(id) then
+            wise_util.fatal label, "Couldn't power '" & port_name & "' OFF within " & timeout & " seconds"
+        else
+            dim elapsed : elapsed = int(timer - start_time)
+            dim msg     : msg = label & "powered '" & port_name & "' OFF"
+            if elapsed > 0 then
+                msg = msg & " in " & elapsed & " seconds"                
+            end if
+            wise_util.info msg
+        end if
+    end sub
+
+    function has_power(port_name)
+        if isempty(device) then
+            has_power = false
+        else
+            has_power = device.getswitch(port_id(port_name))
+        end if
+    end function
+
+    sub power_cycle(port_name)
+        if has_power(port_name) then
+            power_off(port_name)
+            wise_util.sleep 2
+        end if
+        power_on(port_name)
+        wise_util.sleep 2
+    end sub
+
+    function port_id(port_name)
+        if isempty(device) then
+            exit function
+        end if
+
+        for i = 0 to ubound(port_names) - 1
+            if lcase(port_names(i)) = lcase(port_name) then
+                port_id = i
+                exit function
+            end if
+        next
+    end function
+
+
+    ]]>
+		</script>
+	</component>
+</package>
