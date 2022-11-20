@@ -67,10 +67,10 @@
 
     <![CDATA[
 
-    dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim wise_util   : set wise_util  = createobject("Wise.Util")
+    dim wise_power  : set wise_power = createobject("Wise.Power")
+    dim acp_util    : set acp_util   = createobject("ACP.Util")
 	dim obs         : obs = wise_util.observatory
-    dim wise_dli    : set wise_dli = createobject("Wise.Dli")
-    dim acp_util    : set acp_util = createobject("ACP.Util")
     dim label       : label = wise_util.mklabel("Dome")
     dim parking_az, parking_tolerance, dome
 
@@ -292,11 +292,11 @@
 
 	sub c28_get_ready_to_move_shutter(targetState)
 
-		if wise_dli.has_power("dome") then
-			wise_dli.power_off("dome")
+		if wise_power.has_power("dome") then
+			wise_power.power_off("dome")
 			wise_util.sleep 5
 		end if
-		wise_dli.power_on("dome")
+		wise_power.power_on("dome")
 
 		dome_info "waiting 5 seconds for driver to settle ..."
 		wise_util.sleep 5
@@ -447,11 +447,11 @@
     '-----------------------
 
     sub h80_startup
-            dome_info 'h80 startup: TBD'
+            dome_info "h80 startup: TBD"
     end sub
 
     sub h80_shutdown
-            dome_info 'h80 shutdown: TBD'
+            dome_info "h80 shutdown: TBD"
     end sub
 
     '-------------------------------
