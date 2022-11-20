@@ -50,10 +50,22 @@
 
     <![CDATA[
 
-    dim wise_util   : set wise_util = createobject("Wise.Util")
-    dim wise_dli    : set wise_dli = createobject("Wise.Dli")
-    dim acp_util    : set acp_util = createobject("ACP.Util")
+    dim wise_util   : set wise_util  = createobject("Wise.Util")
+    dim wise_power  : set wise_power = createobject("Wise.Power")
+    dim acp_util    : set acp_util   = createobject("ACP.Util")
     dim camera
+    dim camera_outlet
+    dim obs
+
+    obs = wise_util.observatory
+    '
+    ' set the name of the camera outlet as per the power switch
+    '
+    if obs = "h80" then
+        camera_outlet="Camera"
+    elseif obs = "c28" then
+        camera_outlet="ccd"
+    end if
 
     dim initialized : initialized = false
     dim label       : label = wise_util.mklabel("Camera")
@@ -90,7 +102,7 @@
                 current_delta_temp = int(abs(camera.temperature - start_temp))
             loop while (timer - start_time) < max_time and current_delta_temp < delta_temp
             if current_delta_temp < delta_temp then
-                wise_util.fatal label & "camera did not cool by " & delta_temp & " degrees within " & max_time & " seconds."
+                wise_util.fatal label, "camera did not cool by " & delta_temp & " degrees within " & max_time & " seconds."
             else
                 camera_info "cooled by " & int(abs(camera.temperature - start_temp)) & " degrees in " & int(timer - start_time) & " seconds"
             end if
@@ -144,11 +156,11 @@
             exit sub
         end if
 
-        if not wise_util.observatory = "wise40" then
-            if wise_dli.has_power("ccd") then
+        if not obs = "wise40" then
+            if wise_power.has_power(camera_outlet) then
                 camera_info "power is ON"
             else
-                wise_dli.power_on("ccd")
+                wise_power.power_on(camera_outlet)
                 wise_util.sleep 2
             end if
         end if
@@ -168,7 +180,7 @@
             if camera.linkenabled then
                 camera_info "enabled MaxIM DL link"
             else
-                wise_fatal label & "could not enable MaxIM DL link"
+                wise_util.fatal label, "could not enable MaxIM DL link"
             end if
         end if
 
@@ -196,9 +208,9 @@
             wise_util.sleep 5
         end if
          
-        if not wise_util.observatory = "wise40" then
-            if wise_dli.has_power("ccd") then
-                wise_dli.power_off("ccd")
+        if not obs = "wise40" then
+            if wise_power.has_power(camera_outlet) then
+                wise_power.power_off(camera_outlet)
             end if
         end if
 
