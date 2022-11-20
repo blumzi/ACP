@@ -47,6 +47,7 @@
                 <parameter name="Message"/>
             </method>
             <method name="fatal">
+                <parameter name="Source"/>
                 <parameter name="Message"/>
             </method>
             <method name="trace">
@@ -172,12 +173,6 @@
         today = acp_util.FormatVar(utc, "yyyy-mm-dd")
 
         folder = "c:\Wise\Logs\" &  today
-        if not fso.FolderExists("c:\Wise") then
-            fso.CreateFolder("c:\Wise")
-        end if
-        if not fso.FolderExists("c:\Wise\Logs") then
-            fso.CreateFolder("c:\Wise\Logs")
-        end if
         if not fso.FolderExists(folder) then
             fso.CreateFolder(folder)
         end if
@@ -222,7 +217,7 @@
         dim label : label = mklabel("Connect")
 
         if not isobject(device) then
-            fatal label & "first argument must be an object"
+            fatal label, "first argument must be an object"
         end if
         
         if device.connected then
@@ -236,7 +231,7 @@
         loop
 
         if not device.connected then
-            fatal label & "'" & device.name & "' did not connect within " & max_seconds & " seconds"
+            fatal label, "'" & device.name & "' did not connect within " & max_seconds & " seconds"
         end if
     end sub
 
