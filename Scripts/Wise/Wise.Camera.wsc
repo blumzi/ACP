@@ -161,7 +161,8 @@
                 camera_info "power is ON"
             else
                 wise_power.power_on(camera_outlet)
-                wise_util.sleep 2
+                camera_info "Sleeping 10 seconds"
+                wise_util.sleep 10
             end if
         end if
 
