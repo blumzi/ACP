@@ -86,6 +86,9 @@
         case "wise40"
             parking_tolerance = 2
             set dome = createobject("ASCOM.AlpacaDynamic1.Dome")
+        case "h80"
+            parking_az = 130
+            set dome = createobject("ASCOM.AlpacaDynamic1.Dome")
     end select
 
     ' ASCOM shutter states
@@ -163,10 +166,10 @@
             exit sub
         end if
 
-        if target_state = shutterOpen then
+        if target_state = const_shutterOpen then
             dome_info "started opening the shutter"
             dome.openshutter
-        elseif target_state = shutterClosed then
+        elseif target_state = const_shutterClosed then
             dome_info "started closing the shutter"
             dome.closeshutter
         else
@@ -222,7 +225,7 @@
             elseif dome.canfindhome then
                 dome.findhome
             else
-                dome.slewtoaz parking_az
+                dome.slewtoazimuth parking_az
             end if
 
             wise_util.sleep 5   ' let it start slewing
@@ -451,7 +454,10 @@
     end sub
 
     sub h80_shutdown
-            dome_info "h80 shutdown: TBD"
+        dome_info "Telling ACP to Unslave the dome ..."
+        acp_util.Dome.Slaved = false
+        get_shutter_to const_shutterClosed
+        park
     end sub
 
     '-------------------------------
