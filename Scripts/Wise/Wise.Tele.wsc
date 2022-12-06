@@ -468,7 +468,7 @@
         wise_util.sleep 2
 
         dim tstart
-        const tmax = 60 * 5    ' five minutes
+        const tmax = 300
         tstart = timer
         while wise_tele.slewing
             if timer - tstart > tmax then
@@ -478,6 +478,9 @@
             end if
             wise_util.sleep 2
         wend
+
+        tele_info "Stopping tracking ..."
+        wise_tele.tracking = false
 
         tele_info "Done parking"
 
