@@ -234,6 +234,13 @@
                 wise_util.sleep 2
             wend
         end if
+
+        if obs = "h80" then
+            dome_info "fixing overshoot (and waiting 10 seconds)"
+            dome.slewtoazimuth parking_az
+            wise_util.sleep 10
+        end if
+
         dome_info "dome is parked at " & int(dome.azimuth) & " degrees"
     end sub
 

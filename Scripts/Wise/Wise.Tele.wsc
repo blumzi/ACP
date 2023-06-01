@@ -64,6 +64,7 @@
         const covers_movement_seconds = 8
         dim wise_covers : set wise_covers = createobject("ASCOM.AlpacaDynamic1.CoverCalibrator")
         dim wise_tele   : set wise_tele   = createobject("ASCOM.AlpacaDynamic1.Telescope")
+        dim wise_acc    : set wise_acc    = createobject("ASCOM.AlpacaDynamic3.Focuser")
     end if
 
 
@@ -444,7 +445,8 @@
         wise_util.sleep covers_movement_seconds
         tele_info "Done opening covers ..."
 
-        tele_info "H80 start fans (TBD)"
+        tele_info "turning fans ON"
+        wise_acc.Action("fansturnon", 0)
 
         if not acp_util.telescopeconnected then
             wise_util.connect_and_wait acp_tele, 30
@@ -457,7 +459,9 @@
         wise_util.sleep covers_movement_seconds
         tele_info "Done closing covers ..."
 
-        tele_info "H80 stop fans (TBD)"
+        tele_info "turning fans OFF"
+        wise_acc.Action("fansturnoff", 0)
+
         tele_info "disconnecting (dome as well)"
 
         const h80_parking_az = 12.48
