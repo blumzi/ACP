@@ -454,13 +454,13 @@
     end sub
 
     sub h80_shutdown
+        tele_info "turning fans OFF"
+        wise_acc.Action("fansturnoff", 0)
+
         tele_info "Closing covers (waiting " & covers_movement_seconds &  " sec) ..."
         wise_covers.CloseCover()
         wise_util.sleep covers_movement_seconds
         tele_info "Done closing covers ..."
-
-        tele_info "turning fans OFF"
-        wise_acc.Action("fansturnoff", 0)
 
         tele_info "disconnecting (dome as well)"
 
