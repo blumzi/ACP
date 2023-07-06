@@ -177,6 +177,11 @@
 
     sub startup
         init_camera
+            
+        if wise_util.observatory = "c28" then
+			camera.temperaturesetpoint = -25
+        end if
+
         cool_down
     end sub
 
