@@ -1,4 +1,3 @@
-To register the .wsc files do:
+These are ACP scripts, They go into:
 
-	Right click on register.bat
-	Run As Administrator
+    C:/Program Files (x86)/ACP Obs Control/Scripts

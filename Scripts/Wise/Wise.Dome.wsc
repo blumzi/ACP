@@ -67,10 +67,10 @@
 
     <![CDATA[
 
-    dim wise_util   : set wise_util = createobject("Wise.Util")
+    dim wise_util   : set wise_util  = createobject("Wise.Util")
+    dim wise_power  : set wise_power = createobject("Wise.Power")
+    dim acp_util    : set acp_util   = createobject("ACP.Util")
 	dim obs         : obs = wise_util.observatory
-    dim wise_dli    : set wise_dli = createobject("Wise.Dli")
-    dim acp_util    : set acp_util = createobject("ACP.Util")
     dim label       : label = wise_util.mklabel("Dome")
     dim parking_az, parking_tolerance, dome
 
@@ -85,6 +85,9 @@
             set dome = createobject("???")
         case "wise40"
             parking_tolerance = 2
+            set dome = createobject("ASCOM.AlpacaDynamic1.Dome")
+        case "h80"
+            parking_az = 130
             set dome = createobject("ASCOM.AlpacaDynamic1.Dome")
     end select
 
@@ -163,10 +166,10 @@
             exit sub
         end if
 
-        if target_state = shutterOpen then
+        if target_state = const_shutterOpen then
             dome_info "started opening the shutter"
             dome.openshutter
-        elseif target_state = shutterClosed then
+        elseif target_state = const_shutterClosed then
             dome_info "started closing the shutter"
             dome.closeshutter
         else
@@ -222,7 +225,7 @@
             elseif dome.canfindhome then
                 dome.findhome
             else
-                dome.slewtoaz parking_az
+                dome.slewtoazimuth parking_az
             end if
 
             wise_util.sleep 5   ' let it start slewing
@@ -231,6 +234,13 @@
                 wise_util.sleep 2
             wend
         end if
+
+        if obs = "h80" then
+            dome_info "fixing overshoot (and waiting 10 seconds)"
+            dome.slewtoazimuth parking_az
+            wise_util.sleep 10
+        end if
+
         dome_info "dome is parked at " & int(dome.azimuth) & " degrees"
     end sub
 
@@ -292,11 +302,11 @@
 
 	sub c28_get_ready_to_move_shutter(targetState)
 
-		if wise_dli.has_power("dome") then
-			wise_dli.power_off("dome")
+		if wise_power.has_power("dome") then
+			wise_power.power_off("dome")
 			wise_util.sleep 5
 		end if
-		wise_dli.power_on("dome")
+		wise_power.power_on("dome")
 
 		dome_info "waiting 5 seconds for driver to settle ..."
 		wise_util.sleep 5
@@ -451,7 +461,10 @@
     end sub
 
     sub h80_shutdown
-            dome_info "h80 shutdown: TBD"
+        dome_info "Telling ACP to Unslave the dome ..."
+        acp_util.Dome.Slaved = false
+        get_shutter_to const_shutterClosed
+        park
     end sub
 
     '-------------------------------

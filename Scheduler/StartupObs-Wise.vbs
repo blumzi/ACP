@@ -24,7 +24,7 @@ sub main
 
     wise_camera.startup
 
-    wise_util.task_run label & "loading FocusMax ...", """C:\Program Files (x86)\FocusMax V4\FocusMax.exe"""
+    start_focusmax obs, label
 
     wise_tele.startup
 
@@ -37,3 +37,20 @@ sub main
     wise_util.info label
 
 end Sub
+
+
+sub start_focusmax(obs, label)
+	dim wise_util   : set wise_util   = createobject("Wise.Util")
+    dim command
+
+    if obs = "c18" then
+        command = """C:\Program Files (x86)\FocusMax\FocusMax.exe"""
+    elseif obs = "c28" or obs = "wise40" then
+        command = """C:\Program Files (x86)\FocusMax V4\FocusMax.exe"""
+    elseif obs = "h80" then
+        command = """C:\Program Files (x86)\FocusMax V5\FocusMax.exe"""
+    end if
+    
+    wise_util.task_run label & "loading FocusMax ...", command
+    set wise_util = nothing
+end sub

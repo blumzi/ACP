@@ -1,0 +1,9 @@
+#!/bin/bash
+
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Ascom.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Camera.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Dome.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Http.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Tele.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Util.wsc
+/cygdrive/c/Windows/SysWOW64/regsvr32.exe /s Wise.Power.wsc

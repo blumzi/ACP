@@ -39,7 +39,7 @@
         <public>
             <method name="startup"/>
             <method name="shutdown"/>
-			<method name="slew_to_parking_position"/>
+            <method name="slew_to_parking_position"/>
             <method name="c28_sync_to_absolute_encoders"/>
             <method name="check_limits"/>
         </public>
@@ -48,10 +48,10 @@
 
     <![CDATA[
 
-    dim wise_util : set wise_util = createobject("Wise.Util")
-    dim wise_dli  : set wise_dli  = createobject("Wise.Dli")
-    dim acp_util  : set acp_util  = createobject("ACP.Util")
-    dim acp_tele  : set acp_tele  = createobject("ACP.Telescope")
+    dim wise_util  : set wise_util   = createobject("Wise.Util")
+    dim wise_power : set wise_power  = createobject("Wise.Power")
+    dim acp_util   : set acp_util    = createobject("ACP.Util")
+    dim acp_tele   : set acp_tele    = createobject("ACP.Telescope")
 
     dim obs           : obs           = wise_util.observatory
     dim label         : label         = wise_util.mklabel("Telescope")
@@ -60,34 +60,41 @@
     dim monitoring    : monitoring    = false
     dim parking_ha, parking_dec, alt_limit
 
+    if obs = "h80" then
+        const covers_movement_seconds = 8
+        dim wise_covers : set wise_covers = createobject("ASCOM.AlpacaDynamic1.CoverCalibrator")
+        dim wise_tele   : set wise_tele   = createobject("ASCOM.AlpacaDynamic1.Telescope")
+        dim wise_acc    : set wise_acc    = createobject("ASCOM.AlpacaDynamic3.Focuser")
+    end if
 
-	'----------------
-	' Generic section
-	'----------------
+
+    '----------------
+    ' Generic section
+    '----------------
     sub startup
-		select case obs
-			case "c28"
-				c28_startup
-			case "c18"
-				c18_startup
-			case "wise40"
-				wise40_startup
-			case "h80"
-				h80_startup
-		end select
+        select case obs
+            case "c28"
+                c28_startup
+            case "c18"
+                c18_startup
+            case "wise40"
+                wise40_startup
+            case "h80"
+                h80_startup
+        end select
     end sub
 
 
     sub shutdown
-		select case obs
-			case "c28"
-				c28_shutdown
-			case "wise40"
-				wise40_shutdown
-			case "h80"
-				h80_shutdown
-		end select 
-	end sub
+        select case obs
+            case "c28"
+                c28_shutdown
+            case "wise40"
+                wise40_shutdown
+            case "h80"
+                h80_shutdown
+        end select 
+    end sub
 
 
     sub tele_info(msg)
@@ -95,18 +102,18 @@
     end sub
             
 
-	sub slew_to_parking_position
-		select case obs
-			case "c28"
-				c28_slew_to_parking_position
-		end select 
-	end sub
+    sub slew_to_parking_position
+        select case obs
+            case "c28"
+                c28_slew_to_parking_position
+        end select 
+    end sub
             
 
     sub load_telescope_settings()
-		dim jsonFile : jsonFile = wise_util.settings_file
+        dim jsonFile : jsonFile = wise_util.settings_file
         dim f, json
-		dim fso : set fso = createobject("Scripting.FileSystemObject")
+        dim fso : set fso = createobject("Scripting.FileSystemObject")
 
         err.Clear
         on error resume next
@@ -118,7 +125,7 @@
             with createobject("ScriptControl")
                 .Language = "JScript"
                 with .Eval("(" + json + ")")
-					monitoring  = .Telescope.MonitoringEnabled
+                    monitoring  = .Telescope.MonitoringEnabled
                     parking_ha  = .Telescope.HourAngle
                     parking_dec = .Telescope.Declination
                 end with
@@ -128,99 +135,99 @@
             wise_util.fatal "load_telescope_settings: Cannot open settings file: " & jsonFile
         end if
         f = nothing
-		fso = nothing
+        fso = nothing
         on error goto 0
     end sub 
-	'--------------------
-	' End generic section
-	'--------------------
+    '--------------------
+    ' End generic section
+    '--------------------
 
 
-	'---------------------
-	' C28 specific section
-	'---------------------
-	sub c28_startup
-        if not wise_dli.has_power("Telescope") then
-            wise_dli.power_on("Telescope")
+    '---------------------
+    ' C28 specific section
+    '---------------------
+    sub c28_startup
+        if not wise_power.has_power("Telescope") then
+            wise_power.power_on("Telescope")
             wise_util.sleep 3
         end if
 
         if not acp_util.telescopeconnected then
-			wise_util.connect_and_wait acp_tele, 30
+            wise_util.connect_and_wait acp_tele, 30
         end if
 
-		c28_sync_to_absolute_encoders
-	end sub
+        c28_sync_to_absolute_encoders
+    end sub
 
-	sub c28_slew_to_parking_position
-		dim tstart, tmax
+    sub c28_slew_to_parking_position
+        dim tstart, tmax
 
-		parking_ra = acp_tele.siderealtime - parking_ha
-		tele_info "slewing to parking position: " & acp_util.Hours_HMS(parking_ra) & ", " & acp_util.Degrees_DMS(parking_dec, ":", ":", "") & " ..."
+        parking_ra = acp_tele.siderealtime - parking_ha
+        tele_info "slewing to parking position: " & acp_util.Hours_HMS(parking_ra) & ", " & acp_util.Degrees_DMS(parking_dec, ":", ":", "") & " ..."
 
         acp_tele.slewtocoordinatesasync parking_ra, parking_dec
 
-		' wait for telescope to start slewing
-		tmax = 60		' one minute
-		tstart = timer
-		while not acp_tele.slewing
-			if timer - tstart > tmax then
-				'wise_util.fatal "c28_slew_to_parking_position", label & "did not start slewing within " & tmax & " seconds"
-				tele_info "did not start slewing within " & tmax & " seconds, aborting slew!"
-				acp_tele.abortslew
-				exit sub
-			end if
-			wise_util.sleep 2
-		wend
+        ' wait for telescope to start slewing
+        tmax = 60        ' one minute
+        tstart = timer
+        while not acp_tele.slewing
+            if timer - tstart > tmax then
+                'wise_util.fatal "c28_slew_to_parking_position", label & "did not start slewing within " & tmax & " seconds"
+                tele_info "did not start slewing within " & tmax & " seconds, aborting slew!"
+                acp_tele.abortslew
+                exit sub
+            end if
+            wise_util.sleep 2
+        wend
 
-		' wait for telescope to reach parking position
-		tmax = 60 * 5	' five minutes
-		tstart = timer
-		while acp_tele.slewing
-			if timer - tstart > tmax then
-				'wise_util.fatal "c28_slew_to_parking_position", "did not reach parking within " & tmax & " seconds"
-				tele_info "did not reach parking within " & tmax & " seconds, aborting slew!"
-				acp_tele.abortslew
-				wise_util.sleep 5
-				exit sub
-			end if
-			wise_util.sleep 5
-		wend
+        ' wait for telescope to reach parking position
+        tmax = 60 * 5    ' five minutes
+        tstart = timer
+        while acp_tele.slewing
+            if timer - tstart > tmax then
+                'wise_util.fatal "c28_slew_to_parking_position", "did not reach parking within " & tmax & " seconds"
+                tele_info "did not reach parking within " & tmax & " seconds, aborting slew!"
+                acp_tele.abortslew
+                wise_util.sleep 5
+                exit sub
+            end if
+            wise_util.sleep 5
+        wend
 
-		tele_info "reached parking position"
-	end sub
+        tele_info "reached parking position"
+    end sub
 
 
-	sub c28_shutdown
-		'
-		' The FS2 cannot Park, so:
-		'  - we need to send it to the parking coordinates
-		'  - CanPark and CanFindHome are false
-		'  - AtPark and AtHome are not relevant
-		'
+    sub c28_shutdown
+        '
+        ' The FS2 cannot Park, so:
+        '  - we need to send it to the parking coordinates
+        '  - CanPark and CanFindHome are false
+        '  - AtPark and AtHome are not relevant
+        '
 
-		load_telescope_settings
+        load_telescope_settings
 
-        if not wise_dli.has_power("Telescope") then
-            wise_dli.power_on("Telescope")
+        if not wise_power.has_power("Telescope") then
+            wise_power.power_on("Telescope")
             wise_util.sleep 3
         end if
 
-		if not acp_tele.connected then
-			acp_tele.connected = true
-			tele_info "connected"
-		end if
+        if not acp_tele.connected then
+            acp_tele.connected = true
+            tele_info "connected"
+        end if
 
-		if acp_tele.rightascension < 0.001 then
-			c28_sync_to_absolute_encoders
-		end if
+        if acp_tele.rightascension < 0.001 then
+            c28_sync_to_absolute_encoders
+        end if
 
-		c28_slew_to_parking_position
+        c28_slew_to_parking_position
 
-		tele_info "disconnecting (dome as well)"
-		acp_tele.connected = false
+        tele_info "disconnecting (dome as well)"
+        acp_tele.connected = false
 
-		wise_dli.power_off("Telescope")
+        wise_power.power_off("Telescope")
 
     end sub
 
@@ -251,13 +258,13 @@
         '
         ' Example:    0:256:NoError,1:1024:NoError
         '
-		dim fso  : set fso = createobject("Scripting.FileSystemObject")
-		dim tmp  : tmp = fso.BuildPath(fso.GetSpecialFolder(2), fso.GetTempName())
+        dim fso  : set fso = createobject("Scripting.FileSystemObject")
+        dim tmp  : tmp = fso.BuildPath(fso.GetSpecialFolder(2), fso.GetTempName())
         dim sh   : set sh = createobject ("WScript.Shell")
 
         sh.run "cmd /c C:\SEI\A2Read\A2Read\bin\Debug\A2Read.exe COM11 0 1 retry=15 > " & tmp, 0, True
         raw_reading = fso.OpenTextFile(tmp).ReadLine()
-		fso.DeleteFile(tmp)
+        fso.DeleteFile(tmp)
 
         set sh  = nothing
         set fso = nothing
@@ -352,7 +359,7 @@
         if not monitoring  then _
             exit sub
 
-        if not wise_dli.has_power("Telescope") then
+        if not wise_power.has_power("Telescope") then
             wise_util.trace "[I] " & label & "The telescope is powered OFF"
             exit sub
         end if
@@ -389,7 +396,7 @@
 
         wise_util.trace msg & ", under limit"
 
-		c28_slew_to_parking_position
+        c28_slew_to_parking_position
 
     end sub
     '----------------------------
@@ -402,7 +409,7 @@
     '------------------------
     sub wise40_startup
         if not acp_util.telescopeconnected then
-			wise_util.connect_and_wait acp_tele, 30
+            wise_util.connect_and_wait acp_tele, 30
         end if
 
         if acp_tele.atpark then
@@ -433,11 +440,55 @@
     ' H80 specific section
     '---------------------
     sub h80_startup
-        tele_info 'H80 startup (TBD)'
+        tele_info "Opening covers (waiting " & covers_movement_seconds & " sec) ..."
+        wise_covers.OpenCover()
+        wise_util.sleep covers_movement_seconds
+        tele_info "Done opening covers ..."
+
+        tele_info "turning fans ON"
+        wise_acc.Action("fansturnon", 0)
+
+        if not acp_util.telescopeconnected then
+            wise_util.connect_and_wait acp_tele, 30
+        end if
     end sub
 
     sub h80_shutdown
-        tele_info 'H80 shutdown (TBD)'
+        tele_info "turning fans OFF"
+        wise_acc.Action("fansturnoff", 0)
+
+        tele_info "Closing covers (waiting " & covers_movement_seconds &  " sec) ..."
+        wise_covers.CloseCover()
+        wise_util.sleep covers_movement_seconds
+        tele_info "Done closing covers ..."
+
+        tele_info "disconnecting (dome as well)"
+
+        const h80_parking_az = 12.48
+        const h80_parking_alt = 31.79
+
+        tele_info "Slewing to parking position az: " & h80_parking_az & ", alt: " & h80_parking_alt
+        wise_tele.slewtoaltaz h80_parking_az, h80_parking_alt
+        wise_util.sleep 2
+
+        dim tstart
+        const tmax = 300
+        tstart = timer
+        while wise_tele.slewing
+            if timer - tstart > tmax then
+                tele_info "Did not reach parking position within " & tmax & " seconds, aborting slew!"
+                wise_tele.abortslew
+                wise_util.sleep 2
+            end if
+            wise_util.sleep 2
+        wend
+
+        tele_info "Stopping tracking ..."
+        wise_tele.tracking = false
+
+        tele_info "Done parking"
+
+        acp_tele.connected = false
     end sub
     '----------------------------
     ' End of H80 specific section
