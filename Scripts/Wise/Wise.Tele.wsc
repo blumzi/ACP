@@ -446,7 +446,7 @@
         tele_info "Done opening covers ..."
 
         tele_info "turning fans ON"
-        wise_acc.Action("fansturnon", 0)
+        wise_acc.Action "fansturnon", 0
 
         if not acp_util.telescopeconnected then
             wise_util.connect_and_wait acp_tele, 30
@@ -455,7 +455,7 @@
 
     sub h80_shutdown
         tele_info "turning fans OFF"
-        wise_acc.Action("fansturnoff", 0)
+        wise_acc.Action "fansturnoff", 0
 
         tele_info "Closing covers (waiting " & covers_movement_seconds &  " sec) ..."
         wise_covers.CloseCover()
