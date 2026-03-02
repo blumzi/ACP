@@ -1,0 +1,175 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+
+    Script:         Wise.H80.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This script provides support for the H80 additional polarized qhy550p camera
+                    
+    Environment:    This is a Windows Script Component. 
+                    
+    Edit History:
+        27-Dec-2025   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+    <component>
+        <?component error="true" debug="true" ?>
+        <registration progid="Wise.H80"
+                      classid="{F1A8C7D3-6B4E-4D0A-9C7B-2C6E5D12A9F4}"
+                      description="H80 support for the qhy550p camera"
+                      remotable="no"
+                      version="1.0">
+        </registration>
+        <public>
+            <method name="TargetEnd">
+                <parameter name="Plan" />
+                <parameter name="Target" />
+                <parameter name="NextTarget" />
+            </method>
+            <method name="ImageComplete">
+                <parameter name="ImageFile" />
+            </method>
+        </public>
+        <object id="FSO" progid="Scripting.FileSystemObject" events="false" reference="false" />
+
+        <script language="JScript">
+                    <![CDATA[
+
+                                                                                                                                                                                                                                                                                                                                                    var wise_util = new ActiveXObject("Wise.Util");
+                var acp_util = new ActiveXObject("ACP.Util");
+                var focuser = new ActiveXObject("FocusMax.FocusControl");
+                var qhy550p = new ActiveXObject("Wise.H80.QHY550P");
+                var flipmirror = new ActiveXObject("Wise.H80.FlipMirror");
+                var label = wise_util.mklabel("H80");
+
+                var default_exposure_seconds = 600; // seconds
+                var default_focuser_offset = 240; // steps
+
+                var latest_imgFile = null;
+
+            function ImageComplete(imgFile) {
+                wise_util.info("H80.ImageComplete: '" + imgFile + "'");
+                latest_imgFile = imgFile;
+            }
+
+                // Public entry: TargetEnd(Plan, Target, NextTarget)
+            function TargetEnd(pl, tgt, nexttgt) {
+
+
+                    var obs = wise_util.observatory
+                    if (obs != "h80") {
+                        wise_util.warning("This observatory is '" + obs + "', not 'h80', skipping.");
+                        return;
+                    }
+
+                    wise_util.info("H80.TargetEnd called for target '" + tgt.Name + "'");
+
+                    var focuser_offset = default_focuser_offset;
+                    var camera_exposure_seconds = default_exposure_seconds;
+                    var camera_gain = null;
+                    var do_polar = false; // do the whole polar thing or not?
+
+                    try {
+
+                        for (var tag in tgt.Tags) {
+
+                            if (tag == "polar") {
+                                do_polar = parseBool(tgt.Tags[tag]);
+                            } else if (tag == "polar-focus-offset") {
+                                focuser_offset = parseInt(tgt.Tags[tag]);
+                            } else if (tag == "polar-exposure") {
+                                camera_exposure_seconds = parseInt(tgt.Tags[tag]);
+                            } else if (tag == "polar-gain") {
+                                camera_gain = parseInt(tgt.Tags[tag]);
+                            }
+                        }
+
+                        if (!do_polar) {
+                            wise_util.info("skipping polar camera");
+                            return;
+                        }
+
+                        var saved_focus_position = focuser.Position;
+
+                        move_focuser(saved_focus_position + focuser_offset);
+                        move_flipmirror("polar");
+                        qhy550p.Expose(camera_exposure_seconds, latest_imgFile, camera_gain);
+                        move_focuser(saved_focus_position);
+                        move_flipmirror("main");
+
+                        wise_util.info("TargetEnd completed successfully.");
+
+                    } catch (e) {
+                        wise_util.error("Exception: " + e.description);
+                    }
+
+                    latest_imgFile = null; // reset for next time
+                }
+
+                function move_flipmirror(camera) {
+                    var start = getTimer();
+                    var timeout = 120; // seconds
+                    var label = "FlipMiror: ";
+
+                    if (flipmirror.CurrentCamera() == camera)
+                        return;
+
+                    flipmirror.SelectCamera(camera);
+                    while (flipmirror.CurrentCamera() != camera && (getTimer() - start) < timeout) {
+                        acp_util.WaitForMilliseconds(1000);
+                    }
+                    if (flipmirror.CurrentCamera() != camera) {
+                        throw new Error(label + "timeout");
+                    }
+                    wise_util.info(label + "at '" + camera + "' camera");
+                }
+
+                function move_focuser(new_position) {
+                    var timeout = 120; // seconds
+                    var start = getTimer();
+                    var label = "Focuser: ";
+
+                    wise_util.info(label + focuser.Position + " -> " + new_position);
+
+                    focuser.Move(new_position);
+                    while (focuser.IsBusy && (getTimer() - start) < timeout) {
+                        acp_util.WaitForMilliseconds(500);
+                    }
+                    if (focuser.IsBusy) {
+                        throw new Error(label + "timeout");
+                    }
+                    wise_util.info(label + "at " + focuser.Position);
+                }
+
+                function getTimer() {
+                    return new Date().getTime() / 1000;
+                }
+
+                function parseBool(value) {
+                    if (typeof value === "boolean") return value;
+                    if (typeof value === "string") {
+                        var lower = str_trim(value.toLowerCase());
+                        if (lower === "true" || lower === "1" || lower === "yes" || lower === "on")
+                            return true;
+                        else if (lower === "false" || lower === "0" || lower === "no" || lower === "off")
+                            return false;
+                        else
+                            throw new Error("Cannot parse boolean value: '" + value + "'");
+                    }
+                }
+
+                function str_trim(str) {
+                    return str.replace(/^\s+|\s+$/g, "");
+                }
+
+                    ]]>
+        </script>
+    </component>
+</package>

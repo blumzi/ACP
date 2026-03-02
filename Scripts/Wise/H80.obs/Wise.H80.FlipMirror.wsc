@@ -1,0 +1,103 @@
+<?xml version="1.0" ?>
+<package>
+	<comment>
+    <![CDATA[
+    'tabs=4
+    -----------------------------------------------------------------------------------------
+
+    Script:         Wise.FlipMirror.wsc
+    Author:         Arie Blumenzweig <theblumz@gmail.com>
+    Version:        1.0
+    Requires:       Windows Script 5.6 or later (installed by ACP setup)
+
+    Description:    This script provides support for the H80 additional polarized qhy550p camera
+                    
+    Environment:    This is a Windows Script Component. 
+                    
+    Edit History:
+        27-Dec-2025   Initial Edit
+    -----------------------------------------------------------------------------------------
+    ]]>
+	</comment>
+	<component>
+		<?component error="true" debug="true" ?>
+		<registration
+            progid="Wise.H80.FlipMirror" 
+            classid="{ea80704d-2b30-45df-a08f-610a3f6b0c2c}" 
+            description="H80 support for the Baader FlipMirror" 
+            remotable="no" 
+            version="1.0">
+		</registration>
+		<public>
+			<method name="CurrentCamera">
+			</method>
+
+            <method name="SelectCamera">
+                <parameter name="camera"/>
+            </method>
+		</public>
+
+        <script language="JScript">
+
+                <![CDATA[
+
+                var wise_util = new ActiveXObject("Wise.Util");
+                var acp_util = new ActiveXObject("ACP.Util");
+
+                var http_client = new ActiveXObject("MSXML2.ServerXMLHTTP.6.0");
+                var flip_mirror_ip = "132.66.65.15";
+
+                // HTTP GET helper
+                function HttpGet(url) {
+                    var requestUri = "http://" + flip_mirror_ip + "/" + url;
+                    http_client.open("GET", requestUri, false);
+                    http_client.send();
+                    if (http_client.status != 200) {
+                        throw new Error("HTTP error: " + http_client.status + " " + http_client.statusText);
+                    }
+                    return http_client.responseText;
+                }
+
+                // Returns "main", "polar" or "unknown"
+                function CurrentCamera() {
+                    var response = HttpGet("status");
+
+                    //wise_util.info("FlipMirror: status response: '" + response + "'");
+                    if (response.indexOf("S_AIN_BOUT") > -1) {
+                        return "main";
+                    } else if (response.indexOf("S_AOUT_BOUT") > -1) {
+                        return "polar";
+                    } else if (response.indexOf("S_AMOV") > -1) {
+                        return "moving";
+                    } else {
+                        return "unknown";
+                    }
+                }
+
+                // Selects camera by issuing command to device
+                function SelectCamera(camera) {
+                    var command;
+                    if (camera == CurrentCamera()) {
+                        wise_util.info("FlipMirror: camera already set to '" + camera + "'.");
+                        return;
+                    }
+
+                    switch (camera.toLowerCase()) {
+                        case "main":
+                            command = "set_port2";
+                            break;
+                        case "polar":
+                            command = "set_port1";
+                            break;
+                        default:
+                            throw new Error("Invalid camera selection: '" + camera + "'");
+                    }
+                    HttpGet(command);
+
+                    wise_util.info("FlipMirror: switched to '" + camera + "' camera.");
+                }
+
+                ]]>
+        </script>
+	</component>
+</package>
