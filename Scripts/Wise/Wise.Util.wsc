@@ -28,7 +28,7 @@
     ]]>
     </comment>
     <component>
-        <?component error="true" debug="false" ?>
+        <?component error="true" debug="true" ?>
         <registration
             progid="Wise.Util" 
             classid="{d778ffb5-8909-49d4-9782-890ee191799c}" 
@@ -38,74 +38,81 @@
         </registration>
         <public>
             <method name="info">
-                <parameter name="Message"/>
+                <parameter name="Message" />
             </method>
             <method name="debug">
-                <parameter name="Message"/>
+                <parameter name="Message" />
             </method>
             <method name="warning">
-                <parameter name="Message"/>
+                <parameter name="Message" />
+            </method>
+            <method name="error">
+                <parameter name="Message" />
             </method>
             <method name="fatal">
-                <parameter name="Source"/>
-                <parameter name="Message"/>
+                <parameter name="Source" />
+                <parameter name="Message" />
             </method>
             <method name="trace">
-                <parameter name="Message"/>
+                <parameter name="Message" />
             </method>
             <property name="settings_file">
-                <get/>
+                <get />
             </property>
             <property name="hostname">
-                <get/>
+                <get />
             </property>
             <method name="sleep">
-                <parameter name="Seconds"/>
+                <parameter name="Seconds" />
             </method>
             <method name="connect_and_wait">
-                <parameter name="Device"/>
-                <parameter name="TimeoutSeconds"/>
+                <parameter name="Device" />
+                <parameter name="TimeoutSeconds" />
             </method>
             <property name="observatory">
-                <get/>
+                <get />
             </property>
             <property name="prog">
-                <get/>
+                <get />
             </property>
             <method name="mklabel">
-                <parameter name="label"/>
+                <parameter name="label" />
             </method>
             <method name="task_run">
-                <parameter name="message"/>
-                <parameter name="command"/>
+                <parameter name="message" />
+                <parameter name="command" />
             </method>
-		<!--
-            <method name="task_check_or_run">
-                <parameter name="message"/>
-                <parameter name="image_pattern"/>
-                <parameter name="command"/>
-            </method>
-		-->
+            <!--
+        <method name="task_check_or_run">
+            <parameter name="message"/>
+            <parameter name="image_pattern"/>
+            <parameter name="command"/>
+        </method>
+    -->
             <method name="task_kill">
-                <parameter name="message"/>
-                <parameter name="command"/>
+                <parameter name="message" />
+                <parameter name="command" />
             </method>
         </public>
 
         <script language="VBScript">
 
     <![CDATA[
+        
+    Option Explicit
+    dim fso, acp_util
+    
+    set fso = createobject("Scripting.FileSystemObject")
+    set acp_util = createobject("ACP.Util")
 
-    dim fso       : set fso = createobject("Scripting.FileSystemObject")
-    dim acp_util  : set acp_util = createobject("ACP.Util")
+    dim prog_file, prog_name, prog_path
+    dim acp_script_path : acp_script_path = ""
 
-    dim prog_file, prog_name
-
-    if not isobject(acp_util.console.script) then
+    if not isobject(acp_util) or (Len(acp_script_path) = 0) then
         prog_name = "WiseComponentsForACP"
         prog_path = "C:\Program Files (x86)\ACP Obs Control\WeatherComponents\" & prog_name & ".wsc"
     else
-        if fso is nothing then
+        if not isobject(fso) then
             prog_path = "unknown prog path"
             prog_name = "unknown"
         else
@@ -146,6 +153,13 @@
     end sub
 
     '
+    ' Outputs an error message
+    '
+    sub error(msg)
+        say "[E] " & msg
+    end sub
+
+    '
     ' Outputs an information message
     '
     sub info(msg)
@@ -156,7 +170,7 @@
     ' Outputs a debug message
     '
     sub debug(msg)
-        say "DEBUG: " & msg
+        say "[D]: " & msg
     end sub
 
     '
