@@ -69,7 +69,6 @@ $wscFiles = @(
     (Join-Path (Split-Path $WscDirectory -Parent) "Wise.Util.wsc"),
     # Local files
     "Wise.H80.FlipMirror.wsc",
-    "Wise.H80.QHY550P.wsc",
     "Wise.H80.wsc",
     "UserActions.wsc"
 )

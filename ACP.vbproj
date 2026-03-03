@@ -149,6 +149,7 @@
     <None Include="ACP_TemporaryKey.pfx" />
     <None Include="app.config" />
     <None Include="build.bat" />
+    <None Include="Scripts\Wise\H80.obs\README.md" />
     <None Include="Scripts\Wise\H80.obs\register-wsc-components.ps1" />
     <None Include="WiseSettings\WiseSettings-c28.json" />
     <None Include="WiseSettings\WiseSettings-h80.json" />
