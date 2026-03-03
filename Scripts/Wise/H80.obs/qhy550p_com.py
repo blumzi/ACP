@@ -115,13 +115,13 @@ class QHY550P:
             # Set gain if the driver supports it
             if gain is not None:
                 if (gain < cam.GainMin) or (gain > cam.GainMax):
-                    self.warning(f"gain {gain} is out of range [{cam.GainMin}, {cam.GainMax}], ignoring."))
+                    self.warning(f"gain {gain} is out of range [{cam.GainMin}, {cam.GainMax}], ignoring.")
                 else:
                     try:
                         self.info(f"setting gain to {gain}")
                         cam.Gain = gain
                     except Exception as ex:
-                        self.warning(f"failed to set gain: {ex=}"))
+                        self.warning(f"failed to set gain: {ex=}")
 
             # Start exposure
             self.info(f"starting {duration} seconds exposure")
