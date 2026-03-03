@@ -98,6 +98,10 @@ class QHY550P:
             self.info(f"size: {cam.CameraXSize}x{cam.CameraYSize}")
             self.info(f"driver version: {cam.DriverVersion}")
 
+            if duration < cam.ExposureMin or duration > cam.ExposureMax:
+                self.error(f"duration {duration} is out of range [{cam.ExposureMin}, {cam.ExposureMax}]")
+                return False
+
             self.info(f"setting binning = 1")
             cam.BinX = 1
             cam.BinY = 1
@@ -109,12 +113,15 @@ class QHY550P:
             cam.NumY = cam.CameraYSize
 
             # Set gain if the driver supports it
-            try:
-                if gain is not None:
-                    self.info(f"setting gain to {gain}")
-                    cam.Gain = gain
-            except Exception:
-                pass  # driver may not support Gain property
+            if gain is not None:
+                if (gain < cam.GainMin) or (gain > cam.GainMax):
+                    self.warning(f"gain {gain} is out of range [{cam.GainMin}, {cam.GainMax}], ignoring."))
+                else:
+                    try:
+                        self.info(f"setting gain to {gain}")
+                        cam.Gain = gain
+                    except Exception as ex:
+                        self.warning(f"failed to set gain: {ex=}"))
 
             # Start exposure
             self.info(f"starting {duration} seconds exposure")
@@ -136,7 +143,7 @@ class QHY550P:
                 self.info(f"state: {state_str}")
 
                 if time.time() - start > timeout:
-                    self.error(f"Timeout waiting for ImageReady after {timeout} seconds")
+                    self.error(f"Timeout after {timeout} seconds waiting for ImageReady ")
                     return False
                 time.sleep(1.0)
             self.debug("image is ready")
@@ -181,7 +188,7 @@ class QHY550P:
 
             # Write FITS
             parts[2] = f"{int(duration):03d}s"
-            fits_file = '-'.join([parts[0]] + ["polar"] + parts[1:])
+            fits_file = '-'.join(parts).replace(".fts", "-polar.fts")
             hdu = fits.PrimaryHDU(data=arr, header=hdr)
             hdu.writeto(str(fits_file), overwrite=True)
             self.debug(f"wrote {fits_file=}")
