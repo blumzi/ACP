@@ -49,7 +49,7 @@
                 var flipmirror = new ActiveXObject("Wise.H80.FlipMirror");
                 var label = wise_util.mklabel("H80");
 
-                var default_exposure_seconds = 600; // seconds
+                var default_exposure_seconds = 300; // seconds
                 var default_focuser_offset = 240; // steps
                 var default_gain = 85; // QHY550P gain (0-100)
                 var default_offset = 10; // QHY550P offset (0-100)
