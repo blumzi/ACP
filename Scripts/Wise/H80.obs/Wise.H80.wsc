@@ -256,23 +256,25 @@
                 }
 
                 // Parse a polar spec of the form:
-                //   [ polar focus-offset=N exposure=N number-of-exposures=N gain=N offset=N ]
-                // The leading 'polar' marker and the surrounding brackets are required;
-                // every key=value is optional. Only the keys actually present are written
-                // into `params`, so this can be layered over existing (e.g. tag-based)
-                // config. Returns true if `value` was a polar spec, false otherwise
-                // (leaving `params` untouched).
+                //   [ polar focus-offset=N exposure=N.N number-of-exposures=N gain=N offset=N ]
+                // The spec may be embedded in surrounding free text (e.g. an Observation
+                // Description like "Target GRAL 1651 [ polar ... ]"); the first [ ... ] block
+                // is extracted. The 'polar' marker and keys are case-insensitive. The
+                // focus-offset key also accepts the aliases 'focuser-offset'. Every key=value is optional; only the keys actually present
+                // are written into `params`, so this can be layered over existing (e.g.
+                // tag-based) config. Returns true if `value` carried a polar spec, false
+                // otherwise (leaving `params` untouched).
                 function parse_polar_parameters(value, params) {
                     if (typeof value != "string")
                         return false;
 
-                    var text = str_trim(value);
-
-                    // Must be wrapped in [ ... ].
-                    if (text.length < 2 || text.charAt(0) != "[" || text.charAt(text.length - 1) != "]")
+                    // Extract the first [ ... ] block from anywhere within the text.
+                    var open = value.indexOf("[");
+                    var close = value.lastIndexOf("]");
+                    if (open < 0 || close < 0 || close <= open)
                         return false;
 
-                    var inner = str_trim(text.substring(1, text.length - 1));
+                    var inner = str_trim(value.substring(open + 1, close));
                     var tokens = inner.split(/\s+/);
 
                     var found_polar = false;
@@ -286,13 +288,14 @@
                         var eq = token.indexOf("=");
                         var key = (eq < 0) ? token : token.substring(0, eq);
                         var val = (eq < 0) ? null : token.substring(eq + 1);
+                        key = str_trim(key).toLowerCase(); // case-insensitive
 
                         if (key == "polar") {
                             found_polar = true;
-                        } else if (key == "focus-offset") {
+                        } else if (key == "focus-offset" || key == "focuser-offset") {
                             updates.focus_offset = parse_int_param(val, params.focus_offset, key);
                         } else if (key == "exposure") {
-                            updates.exposure = parse_int_param(val, params.exposure, key);
+                            updates.exposure = parse_float_param(val, params.exposure, key);
                         } else if (key == "number-of-exposures") {
                             updates.number_of_exposures = parse_int_param(val, params.number_of_exposures, key);
                         } else if (key == "gain") {
@@ -320,6 +323,16 @@
                     var n = parseInt(val, 10);
                     if (isNaN(n)) {
                         wise_util.warning("invalid integer for '" + key + "': '" + val + "', using default " + fallback);
+                        return fallback;
+                    }
+                    return n;
+                }
+
+                // parseFloat with a fallback; warns and returns `fallback` on a bad value.
+                function parse_float_param(val, fallback, key) {
+                    var n = parseFloat(val);
+                    if (isNaN(n)) {
+                        wise_util.warning("invalid number for '" + key + "': '" + val + "', using default " + fallback);
                         return fallback;
                     }
                     return n;
