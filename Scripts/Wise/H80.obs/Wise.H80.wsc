@@ -51,6 +51,8 @@
 
                 var default_exposure_seconds = 600; // seconds
                 var default_focuser_offset = 240; // steps
+                var default_gain = 85; // QHY550P gain (0-100)
+                var default_offset = 10; // QHY550P offset (0-100)
 
                 var latest_imgFile = null;
 
@@ -71,36 +73,88 @@
 
                     wise_util.info("H80.TargetEnd called for target '" + tgt.Name + "'");
 
-                    var focuser_offset = default_focuser_offset;
-                    var camera_exposure_seconds = default_exposure_seconds;
-                    var camera_gain = null;
-                    var do_polar = false; // do the whole polar thing or not?
+                    // Start from defaults, then layer on configuration: legacy tag-based
+                    // config is applied first, then a [ polar ... ] string spec found in
+                    // any target field overrides whichever keys it specifies.
+                    var polar_params = default_polar_parameters();
+
+                    // Legacy tag-based config.
+                    try {
+                        for (var tag in tgt.Tags) {
+                            if (tag == "polar") {
+                                if (parseBool(tgt.Tags[tag])) polar_params.do_polar = true;
+                            } else if (tag == "polar-focus-offset") {
+                                polar_params.focus_offset = parse_int_param(tgt.Tags[tag], polar_params.focus_offset, tag);
+                            } else if (tag == "polar-exposure") {
+                                polar_params.exposure = parse_int_param(tgt.Tags[tag], polar_params.exposure, tag);
+                            } else if (tag == "polar-gain") {
+                                polar_params.gain = parse_int_param(tgt.Tags[tag], polar_params.gain, tag);
+                            }
+                        }
+                    } catch (e) {
+                        wise_util.info("no readable tags: " + e.description);
+                    }
+
+                    // ---- DISCOVERY: find which target field carries the "[ polar ... ]" spec ----
+                    // A Scheduler Observation is a classic COM object, so `for...in` often
+                    // enumerates nothing; we therefore ALSO probe known candidate property
+                    // names directly. Once the log shows which field holds the spec, this whole
+                    // block can be replaced with a single read of that field.
+                    wise_util.info("===== Target property enumeration (for...in):");
+                    var enumerated_any = false;
+                    for (var field_name in tgt) {
+                        enumerated_any = true;
+                        try {
+                            var field_value = tgt[field_name];
+                            var field_type = typeof field_value;
+                            if (field_type == "string" || field_type == "number" || field_type == "boolean")
+                                wise_util.info("  ." + field_name + " (" + field_type + ") = [" + field_value + "]");
+                            else
+                                wise_util.info("  ." + field_name + " (" + field_type + ")");
+                        } catch (e) {
+                            wise_util.info("  ." + field_name + " <unreadable>");
+                        }
+                    }
+                    if (!enumerated_any)
+                        wise_util.info("  (for...in enumerated no properties - expected for a COM object)");
+
+                    wise_util.info("===== Polar-field probe (candidate properties):");
+                    var polar_field = discover_polar_field(tgt, polar_params);
+                    if (polar_field != null)
+                        wise_util.info("polar parameters taken from field '" + polar_field + "'");
+                    wise_util.info("===== End discovery.");
 
                     try {
 
-                        for (var tag in tgt.Tags) {
-
-                            if (tag == "polar") {
-                                do_polar = parseBool(tgt.Tags[tag]);
-                            } else if (tag == "polar-focus-offset") {
-                                focuser_offset = parseInt(tgt.Tags[tag]);
-                            } else if (tag == "polar-exposure") {
-                                camera_exposure_seconds = parseInt(tgt.Tags[tag]);
-                            } else if (tag == "polar-gain") {
-                                camera_gain = parseInt(tgt.Tags[tag]);
-                            }
-                        }
-
-                        if (!do_polar) {
+                        if (!polar_params.do_polar) {
                             wise_util.info("skipping polar camera");
                             return;
                         }
 
+                        wise_util.info("polar: focus-offset=" + polar_params.focus_offset +
+                                       ", exposure=" + polar_params.exposure +
+                                       ", number-of-exposures=" + polar_params.number_of_exposures +
+                                       ", gain=" + polar_params.gain +
+                                       ", offset=" + polar_params.offset);
+
+                        if (polar_params.offset != null)
+                            wise_util.warning("polar: 'offset' is parsed but not yet wired to the camera.");
+
                         var saved_focus_position = focuser.Position;
 
-                        move_focuser(saved_focus_position + focuser_offset);
+                        move_focuser(saved_focus_position + polar_params.focus_offset);
                         move_flipmirror("polar");
-                        qhy550p.Expose(camera_exposure_seconds, latest_imgFile, camera_gain);
+                        for (var n = 0; n < polar_params.number_of_exposures; n++) {
+                            wise_util.info("polar: exposure " + (n + 1) + " of " + polar_params.number_of_exposures);
+                            qhy550p.Expose(
+                                polar_params.exposure,
+                                latest_imgFile,
+                                polar_params.gain,
+                                polar_params.offset,
+                                n + 1,
+                                polar_params.number_of_exposures
+                            );
+                        }
                         move_focuser(saved_focus_position);
                         move_flipmirror("main");
 
@@ -150,6 +204,125 @@
 
                 function getTimer() {
                     return new Date().getTime() / 1000;
+                }
+
+                // Candidate property names that might carry the "[ polar ... ]" spec on a
+                // Scheduler Observation object. 'Description' is the documented field (ACP
+                // docs: "put a special string into the Description field of the Observation");
+                // the rest are probed defensively so discovery still works if it's elsewhere.
+                var polar_field_candidates = [
+                    "Description", "Comment", "Comments", "Notes",
+                    "ObsDescription", "ObservationDescription", "UserComment",
+                    "Caption", "Remarks", "UserName1", "UserName2"
+                ];
+
+                // Probe candidate string properties on `tgt` directly (immune to the COM
+                // for...in enumeration problem), log each readable one, and apply the first
+                // that parses as a polar spec to `params`. Returns the winning field name,
+                // or null if none carried a spec.
+                function discover_polar_field(tgt, params) {
+                    var found_field = null;
+                    for (var i = 0; i < polar_field_candidates.length; i++) {
+                        var name = polar_field_candidates[i];
+                        var value;
+                        try {
+                            value = tgt[name];
+                        } catch (e) {
+                            continue; // property does not exist on this object
+                        }
+                        if (value == null || typeof value != "string")
+                            continue;
+
+                        wise_util.info("  probe ." + name + " = [" + value + "]");
+                        if (found_field == null && parse_polar_parameters(value, params)) {
+                            found_field = name;
+                            wise_util.info("  .   ^-- POLAR SPEC found in ." + name);
+                        }
+                    }
+                    return found_field;
+                }
+
+                // Default polar parameters; callers layer tag-based and/or string-spec
+                // configuration on top of these.
+                function default_polar_parameters() {
+                    return {
+                        do_polar: false,
+                        focus_offset: default_focuser_offset,
+                        exposure: default_exposure_seconds,
+                        number_of_exposures: 1,
+                        gain: default_gain,
+                        offset: default_offset
+                    };
+                }
+
+                // Parse a polar spec of the form:
+                //   [ polar focus-offset=N exposure=N number-of-exposures=N gain=N offset=N ]
+                // The leading 'polar' marker and the surrounding brackets are required;
+                // every key=value is optional. Only the keys actually present are written
+                // into `params`, so this can be layered over existing (e.g. tag-based)
+                // config. Returns true if `value` was a polar spec, false otherwise
+                // (leaving `params` untouched).
+                function parse_polar_parameters(value, params) {
+                    if (typeof value != "string")
+                        return false;
+
+                    var text = str_trim(value);
+
+                    // Must be wrapped in [ ... ].
+                    if (text.length < 2 || text.charAt(0) != "[" || text.charAt(text.length - 1) != "]")
+                        return false;
+
+                    var inner = str_trim(text.substring(1, text.length - 1));
+                    var tokens = inner.split(/\s+/);
+
+                    var found_polar = false;
+                    var updates = {}; // only the keys explicitly present in the spec
+
+                    for (var i = 0; i < tokens.length; i++) {
+                        var token = tokens[i];
+                        if (token == "")
+                            continue;
+
+                        var eq = token.indexOf("=");
+                        var key = (eq < 0) ? token : token.substring(0, eq);
+                        var val = (eq < 0) ? null : token.substring(eq + 1);
+
+                        if (key == "polar") {
+                            found_polar = true;
+                        } else if (key == "focus-offset") {
+                            updates.focus_offset = parse_int_param(val, params.focus_offset, key);
+                        } else if (key == "exposure") {
+                            updates.exposure = parse_int_param(val, params.exposure, key);
+                        } else if (key == "number-of-exposures") {
+                            updates.number_of_exposures = parse_int_param(val, params.number_of_exposures, key);
+                        } else if (key == "gain") {
+                            updates.gain = parse_int_param(val, params.gain, key);
+                        } else if (key == "offset") {
+                            updates.offset = parse_int_param(val, params.offset, key);
+                        } else {
+                            wise_util.warning("parse_polar_parameters: ignoring unknown token '" + token + "'");
+                        }
+                    }
+
+                    // Only treat this as a polar spec if the 'polar' marker was present.
+                    if (!found_polar)
+                        return false;
+
+                    params.do_polar = true;
+                    for (var k in updates)
+                        params[k] = updates[k];
+
+                    return true;
+                }
+
+                // parseInt with a fallback; warns and returns `fallback` on a bad value.
+                function parse_int_param(val, fallback, key) {
+                    var n = parseInt(val, 10);
+                    if (isNaN(n)) {
+                        wise_util.warning("invalid integer for '" + key + "': '" + val + "', using default " + fallback);
+                        return fallback;
+                    }
+                    return n;
                 }
 
                 function parseBool(value) {
