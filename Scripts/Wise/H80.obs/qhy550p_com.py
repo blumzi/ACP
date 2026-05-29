@@ -25,7 +25,8 @@ class QHY550P:
     _reg_class_spec_ = "QHY550P.QHY550P"
     _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER
 
-    _public_methods_ = ["expose", "cooldown", "set_point"]
+    _public_methods_ = ["expose", "cooldown"]
+    _public_attrs_ = ["set_point"]
     _label = "QHY550P: "
 
     def __init__(self):
@@ -71,7 +72,12 @@ class QHY550P:
             return False
         
     def cooldown(self, target_temp: float | None = None) -> bool:
-        """Set the camera cooling to the specified target temperature in degrees Celsius."""
+        """
+        Command the cooler to a target set-point (degrees Celsius).
+
+        Fire-and-forget: this sets the set-point and returns immediately; it does
+        not wait for the sensor to reach temperature.
+        """
         try:
             if self._cam is None or not self._cam.Connected:
                 if not self.connect():
@@ -82,16 +88,17 @@ class QHY550P:
             if target_temp is None:
                 target_temp = self._set_point
 
-            if target_temp < cam.CoolerMin or target_temp > cam.CoolerMax:
-                self.error(f"target_temp {target_temp} is out of range [{cam.CoolerMin}, {cam.CoolerMax}]")
+            if not cam.CanSetCCDTemperature:
+                self.error("driver does not support setting the CCD temperature")
                 return False
 
-            self.info(f"setting cooler to {target_temp} deg C")
+            self.info(f"setting cooler set point to {target_temp} deg C")
             cam.CoolerOn = True
-            cam.CoolerSetPoint = float(target_temp)
+            cam.SetCCDTemperature = float(target_temp)  # ASCOM set-point property
             return True
 
         except Exception as e:
+            # e.g. the driver raises InvalidValueException for an out-of-range set-point
             self.error(f"cooldown failed: {e}")
             return False
 
@@ -232,6 +239,11 @@ class QHY550P:
             hdr["EXPTIME"]  = (float(duration), "Exposure time in seconds")
             hdr["DATE-OBS"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
             hdr["GAIN"]     = (cam.Gain, "Camera gain setting")
+
+            try:
+                hdr["OFFSET"] = (cam.Offset, "Camera offset setting")
+            except Exception:
+                pass
 
             try:
                 hdr["CCD-TEMP"] = (cam.CCDTemperature, "CCD temperature deg C")
