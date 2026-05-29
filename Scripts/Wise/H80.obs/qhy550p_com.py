@@ -25,17 +25,26 @@ class QHY550P:
     _reg_class_spec_ = "QHY550P.QHY550P"
     _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER
 
-    _public_methods_ = ["expose"]
+    _public_methods_ = ["expose", "cooldown", "set_point"]
     _label = "QHY550P: "
 
     def __init__(self):
         self._cam = None
+        self._set_point = -5.0
         self.connected = False
         self._wise_util = win32com.client.Dispatch("Wise.Util")
 
     # ------------------------------------------------------------------
     # Public COM methods
     # ------------------------------------------------------------------
+
+    @property
+    def set_point(self) -> float:
+        return self._set_point
+    
+    @set_point.setter
+    def set_point(self, value: float):
+        self._set_point = value
 
     def connect(self) -> bool:
         """Connect to the ASCOM QHYCCD_GUIDER camera driver."""
@@ -60,6 +69,31 @@ class QHY550P:
         except Exception as e:
             self.error(f"disconnect failed: {e}")
             return False
+        
+    def cooldown(self, target_temp: float | None = None) -> bool:
+        """Set the camera cooling to the specified target temperature in degrees Celsius."""
+        try:
+            if self._cam is None or not self._cam.Connected:
+                if not self.connect():
+                    return False
+
+            cam = self._cam
+
+            if target_temp is None:
+                target_temp = self._set_point
+
+            if target_temp < cam.CoolerMin or target_temp > cam.CoolerMax:
+                self.error(f"target_temp {target_temp} is out of range [{cam.CoolerMin}, {cam.CoolerMax}]")
+                return False
+
+            self.info(f"setting cooler to {target_temp} deg C")
+            cam.CoolerOn = True
+            cam.CoolerSetPoint = float(target_temp)
+            return True
+
+        except Exception as e:
+            self.error(f"cooldown failed: {e}")
+            return False
 
     def info(self, msg: str):
         self._wise_util.info(self._label + msg)
@@ -73,15 +107,22 @@ class QHY550P:
     def error(self, msg: str):
         self._wise_util.error(self._label + msg)
 
-    def expose(self, duration: float, fits_file: str, gain: int | None = None) -> bool:
+    def expose(self,
+               duration: float,
+               base_fits_file_name: str,
+               gain: int | None = None,
+               offset: int | None = None,
+               n: int | None = None,
+               m: int | None = None) -> bool:
         """
         Take an exposure and save it as a FITS file.
 
         Parameters
         ----------
-        duration      : float   Exposure duration in seconds
-        fits_file     : str     Full path for the output FITS file
-        gain          : int     Camera gain (0 = driver default)
+        duration            : float   Exposure duration in seconds
+        base_fits_file_name : str     Base name for the output FITS file
+        gain                : int     Camera gain (0 = driver default)
+        offset              : int     Camera offset (0 = driver default)
 
         Returns
         -------
@@ -123,6 +164,20 @@ class QHY550P:
                     except Exception as ex:
                         self.warning(f"failed to set gain: {ex=}")
 
+            # Set offset if the driver supports it
+            if offset is not None:
+                if (offset < cam.OffsetMin) or (offset > cam.OffsetMax):
+                    self.warning(f"offset {offset} is out of range [{cam.OffsetMin}, {cam.OffsetMax}], ignoring.")
+                else:
+                    try:
+                        self.info(f"setting offset to {offset}")
+                        cam.Offset = offset
+                    except Exception as ex:
+                        self.warning(f"failed to set offset: {ex=}")
+
+            if cam.CCDTemperature >= self.set_point:
+                self.warning(f"camera temperature ({cam.CCDTemperature} deg C) is above set point ({self.set_point} deg C)")
+
             # Start exposure
             self.info(f"starting {duration} seconds exposure")
             cam.StartExposure(float(duration), True)  # True = light frame
@@ -130,6 +185,10 @@ class QHY550P:
             # Wait for image to be ready
             timeout = duration + 30.0  # generous timeout
             start = time.time()
+            last_console_log_time = 0.0
+            last_state = None
+            last_state_str = None
+
             while not cam.ImageReady:
                 state = cam.CameraState
                 match state:
@@ -140,11 +199,21 @@ class QHY550P:
                     case 4: state_str = "downloading"
                     case 5: state_str = "error"
                     case _: state_str = f"unknown({state})"
-                self.info(f"state: {state_str}")
+                
+                if last_state != state:
+                    self.info(f"state: changed from {last_state_str} to {state_str}")
+                    last_console_log_time = time.time()
+                    last_state = state
+                    last_state_str = state_str
+
+                elif time.time() - last_console_log_time > 5.0:  # Log every 5 seconds
+                    self.info(f"state: {state_str} (elapsed: {int(time.time() - start)}s)")
+                    last_console_log_time = time.time()
 
                 if time.time() - start > timeout:
                     self.error(f"Timeout after {timeout} seconds waiting for ImageReady ")
                     return False
+                
                 time.sleep(1.0)
             self.debug("image is ready")
 
@@ -152,9 +221,9 @@ class QHY550P:
             img_variant = cam.ImageArrayVariant
             vbarray_data = img_variant  # comes in as a nested tuple via pythoncom
 
-            # Convert to numpy array
-            # ASCOM ImageArray is (width, height) i.e. column-major → transpose to (height, width)
-            arr = np.array(vbarray_data, dtype=np.float32).T
+            # Convert to numpy array as 16-bit unsigned ints, keeping ASCOM's
+            # native (width, height) orientation (customer wants it un-transposed).
+            arr = np.array(vbarray_data, dtype=np.uint16)
 
             # Build FITS header
             hdr = fits.Header()
@@ -181,7 +250,7 @@ class QHY550P:
             except Exception:
                 pass
 
-            parts = fits_file.split("-")
+            parts = base_fits_file_name.split("-")
 
             filter = parts[1]
             hdr["FILTER"] = filter
@@ -189,6 +258,8 @@ class QHY550P:
             # Write FITS
             parts[2] = f"{int(duration):03d}s"
             fits_file = '-'.join(parts).replace(".fts", "-polar.fts")
+            if n is not None and m is not None:
+                fits_file = fits_file.replace(".fts", f"-{n:02d}_of_{m:02d}.fts")
             hdu = fits.PrimaryHDU(data=arr, header=hdr)
             hdu.writeto(str(fits_file), overwrite=True)
             self.debug(f"wrote {fits_file=}")
