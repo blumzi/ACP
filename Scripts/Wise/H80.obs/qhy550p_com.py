@@ -9,6 +9,7 @@ Unregister: python qhy550p_com.py --unregister
 
 import time
 import traceback
+from typing import Literal
 import numpy as np
 import pythoncom
 import win32com.client
@@ -25,7 +26,7 @@ class QHY550P:
     _reg_class_spec_ = "QHY550P.QHY550P"
     _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER
 
-    _public_methods_ = ["expose", "cooldown"]
+    _public_methods_ = ["take_exposures", "cooldown"]
     _public_attrs_ = ["set_point"]
     _label = "QHY550P: "
 
@@ -33,6 +34,7 @@ class QHY550P:
         self._cam = None
         self._set_point = -5.0
         self.connected = False
+        self._flip_mirror = None
         self._wise_util = win32com.client.Dispatch("Wise.Util")
 
     # ------------------------------------------------------------------
@@ -114,15 +116,111 @@ class QHY550P:
     def error(self, msg: str):
         self._wise_util.error(self._label + msg)
 
+    def flip_mirror_to_camera(self, camera: str, timeout: float = 120.0) -> bool:
+        """
+        Move the Baader flip mirror so it directs light to `camera` ("main" or
+        "polar") and wait until it reports arrival.
+
+        Pointing at "polar" sends the beam to the QHY550P for a light frame;
+        pointing at "main" leaves the polar sensor in the dark, acting as a
+        "closed shutter" for dark/bias frames (the QHY550P is shutterless).
+
+        Dispatches its own Wise.H80.FlipMirror instance (a stateless HTTP shim
+        to the device), so it does not depend on the caller's COM object.
+
+        Returns True once the mirror is at `camera`, False on timeout.
+        """
+        try:
+            if self._flip_mirror is None:
+                self._flip_mirror = win32com.client.Dispatch("Wise.H80.FlipMirror")
+            fm = self._flip_mirror
+
+            if fm.CurrentCamera() == camera:
+                return True
+
+            self.info(f"flip mirror -> '{camera}'")
+            fm.SelectCamera(camera)
+
+            start = time.time()
+            while fm.CurrentCamera() != camera:
+                if time.time() - start > timeout:
+                    self.error(f"flip mirror: timeout after {timeout}s waiting to reach '{camera}'")
+                    return False
+                time.sleep(1.0)
+
+            self.info(f"flip mirror: at '{camera}'")
+            return True
+
+        except Exception as e:
+            self.error(f"flip_mirror_to_camera failed: {e}")
+            return False
+
+    def take_exposures(self,
+                    duration: float,
+                    base_fits_file_name: str,
+                    gain: int | None = None,
+                    offset: int | None = None,
+                    number_of_exposures: int = 1,
+                    take_dark: bool = False,
+                    take_bias: bool = False) -> bool:
+        """
+        Take `number_of_exposures` exposures in sequence, each a light frame
+        (plus an optional matching dark and/or bias), saving every frame as a
+        FITS file.
+
+        This owns the frame sequence; each frame delegates to expose(). The
+        light frames are numbered n-of-m; the optional dark and bias are taken
+        once each (unnumbered). The mirror is left parked at "main".
+
+        Returns True if every frame succeeded, False on the first failure.
+        """
+        m = int(number_of_exposures) if number_of_exposures else 1
+
+        # Light frames.
+        for n in range(1, m + 1):
+            self.info(f"polar: light {n} of {m}")
+            if not self.expose(duration, base_fits_file_name, gain, offset,
+                               n, m, "light"):
+                return False
+
+        # One matching dark (optional).
+        if take_dark:
+            self.info("polar: dark")
+            if not self.expose(duration, base_fits_file_name, gain, offset,
+                               None, None, "dark"):
+                return False
+
+        # One bias (optional).
+        if take_bias:
+            self.info("polar: bias")
+            if not self.expose(duration, base_fits_file_name, gain, offset,
+                               None, None, "bias"):
+                return False
+
+        # Park the mirror at "main".
+        if not self.flip_mirror_to_camera("main"):
+            return False
+
+        return True
+
     def expose(self,
                duration: float,
                base_fits_file_name: str,
                gain: int | None = None,
                offset: int | None = None,
                n: int | None = None,
-               m: int | None = None) -> bool:
+               m: int | None = None,
+               frame_type: Literal["light", "dark", "bias"] = "light") -> bool:
         """
-        Take an exposure and save it as a FITS file.
+        Take a single exposure of the given frame type and save it as a FITS file.
+
+        frame_type drives mirror position, the ASCOM Light flag and the exposure
+        duration:
+          - "light": mirror -> polar, Light=True,  exposure = duration
+          - "dark" : mirror -> main,  Light=False, exposure = duration
+          - "bias" : mirror -> main,  Light=False, exposure = ExposureMin
+        With the mirror at "main" the (shutterless) polar sensor sees no light,
+        so it acts as a closed shutter for dark/bias frames.
 
         Parameters
         ----------
@@ -130,6 +228,7 @@ class QHY550P:
         base_fits_file_name : str     Base name for the output FITS file
         gain                : int     Camera gain (0 = driver default)
         offset              : int     Camera offset (0 = driver default)
+        frame_type          : str     "light", "dark" or "bias"
 
         Returns
         -------
@@ -172,23 +271,51 @@ class QHY550P:
                         self.warning(f"failed to set gain: {ex=}")
 
             # Set offset if the driver supports it
-            if offset is not None:
-                if (offset < cam.OffsetMin) or (offset > cam.OffsetMax):
-                    self.warning(f"offset {offset} is out of range [{cam.OffsetMin}, {cam.OffsetMax}], ignoring.")
-                else:
-                    try:
-                        self.info(f"setting offset to {offset}")
-                        cam.Offset = offset
-                    except Exception as ex:
-                        self.warning(f"failed to set offset: {ex=}")
+            try:
+                self.info(f"setting offset to {offset}")
+                cam.Offset = offset
+            except Exception as ex:
+                self.warning(f"failed to set offset: {ex=}")
 
             if cam.CCDTemperature >= self.set_point:
                 self.warning(f"camera temperature ({cam.CCDTemperature} deg C) is above set point ({self.set_point} deg C)")
 
-            # Start exposure
-            self.info(f"starting {duration} seconds exposure")
-            cam.StartExposure(float(duration), True)  # True = light frame
+            # Frame-type-specific exposure parameters.
+            if frame_type == "light":
+                camera, light_flag, exp_duration = "polar", True, float(duration)
+            elif frame_type == "dark":
+                camera, light_flag, exp_duration = "main", False, float(duration)
+            elif frame_type == "bias":
+                camera, light_flag, exp_duration = "main", False, float(cam.ExposureMin)
+            else:
+                self.error(f"unknown frame_type '{frame_type}'")
+                return False
 
+            # Point ("polar") or block ("main") the beam, then expose.
+            if not self.flip_mirror_to_camera(camera):
+                return False
+            self.info(f"starting {exp_duration} seconds {frame_type} exposure")
+            cam.StartExposure(exp_duration, light_flag)
+            return self._readout(cam, exp_duration, base_fits_file_name, frame_type, n, m)
+
+        except Exception as e:
+            self.error(traceback.format_exc())
+            return False
+
+    def _readout(self,
+                 cam,
+                 duration: float,
+                 base_fits_file_name: str,
+                 frame_type: Literal["light", "dark", "bias"] = "light",
+                 n: int | None = None,
+                 m: int | None = None) -> bool:
+        """
+        Wait for the in-progress exposure to finish, retrieve the image array,
+        build the FITS header and write the file.
+
+        Assumes StartExposure has already been called on `cam`.
+        """
+        try:
             # Wait for image to be ready
             timeout = duration + 30.0  # generous timeout
             start = time.time()
@@ -206,7 +333,7 @@ class QHY550P:
                     case 4: state_str = "downloading"
                     case 5: state_str = "error"
                     case _: state_str = f"unknown({state})"
-                
+
                 if last_state != state:
                     self.info(f"state: changed from {last_state_str} to {state_str}")
                     last_console_log_time = time.time()
@@ -220,7 +347,7 @@ class QHY550P:
                 if time.time() - start > timeout:
                     self.error(f"Timeout after {timeout} seconds waiting for ImageReady ")
                     return False
-                
+
                 time.sleep(1.0)
             self.debug("image is ready")
 
@@ -232,11 +359,20 @@ class QHY550P:
             # native (width, height) orientation (customer wants it un-transposed).
             arr = np.array(vbarray_data, dtype=np.uint16)
 
+            # Conventional IMAGETYP values (MaxIm DL / ACP convention).
+            image_type = {
+                "light": "Light Frame",
+                "dark":  "Dark Frame",
+                "bias":  "Bias Frame",
+            }.get(frame_type, "Light Frame")
+
             # Build FITS header
             hdr = fits.Header()
             hdr["SIMPLE"]   = True
             hdr["INSTRUME"] = "QHY550P"
+            hdr["IMAGETYP"] = (image_type, "Frame type")
             hdr["EXPTIME"]  = (float(duration), "Exposure time in seconds")
+            hdr["EXPOSURE"] = (float(duration), "Exposure time in seconds")
             hdr["DATE-OBS"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
             hdr["GAIN"]     = (cam.Gain, "Camera gain setting")
 
@@ -247,6 +383,11 @@ class QHY550P:
 
             try:
                 hdr["CCD-TEMP"] = (cam.CCDTemperature, "CCD temperature deg C")
+            except Exception:
+                pass
+
+            try:
+                hdr["SET-TEMP"] = (float(self.set_point), "CCD temperature set point deg C")
             except Exception:
                 pass
 
@@ -271,7 +412,9 @@ class QHY550P:
             parts[2] = f"{int(duration):03d}s"
             fits_file = '-'.join(parts).replace(".fts", "-polar.fts")
             if n is not None and m is not None:
-                fits_file = fits_file.replace(".fts", f"-{n:02d}_of_{m:02d}.fts")
+                fits_file = fits_file.replace(".fts", f"-{n}_of_{m}.fts")
+            if frame_type in ("dark", "bias"):
+                fits_file = fits_file.replace(".fts", f"_{frame_type}.fts")
             hdu = fits.PrimaryHDU(data=arr, header=hdr)
             hdu.writeto(str(fits_file), overwrite=True)
             self.debug(f"wrote {fits_file=}")
