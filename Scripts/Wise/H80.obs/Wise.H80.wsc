@@ -89,40 +89,27 @@
                                 polar_params.exposure = parse_int_param(tgt.Tags[tag], polar_params.exposure, tag);
                             } else if (tag == "polar-gain") {
                                 polar_params.gain = parse_int_param(tgt.Tags[tag], polar_params.gain, tag);
+                            } else if (tag == "polar-offset") {
+                                polar_params.offset = parse_int_param(tgt.Tags[tag], polar_params.offset, tag);
+                            } else if (tag == "polar-number-of-exposures") {
+                                polar_params.number_of_exposures = parse_int_param(tgt.Tags[tag], polar_params.number_of_exposures, tag);
                             }
                         }
                     } catch (e) {
                         wise_util.info("no readable tags: " + e.description);
                     }
 
-                    // ---- DISCOVERY: find which target field carries the "[ polar ... ]" spec ----
-                    // A Scheduler Observation is a classic COM object, so `for...in` often
-                    // enumerates nothing; we therefore ALSO probe known candidate property
-                    // names directly. Once the log shows which field holds the spec, this whole
-                    // block can be replaced with a single read of that field.
-                    wise_util.info("===== Target property enumeration (for...in):");
-                    var enumerated_any = false;
-                    for (var field_name in tgt) {
-                        enumerated_any = true;
-                        try {
-                            var field_value = tgt[field_name];
-                            var field_type = typeof field_value;
-                            if (field_type == "string" || field_type == "number" || field_type == "boolean")
-                                wise_util.info("  ." + field_name + " (" + field_type + ") = [" + field_value + "]");
-                            else
-                                wise_util.info("  ." + field_name + " (" + field_type + ")");
-                        } catch (e) {
-                            wise_util.info("  ." + field_name + " <unreadable>");
+                    // The "[ polar ... ]" spec lives in the Observation's Description field.
+                    try {
+                        var description = tgt.Description;
+                        if (description != null && typeof description == "string") {
+                            wise_util.info("target Description = [:" + description + ":]");
+                            if (parse_polar_parameters(description, polar_params))
+                                wise_util.info("polar parameters taken from Description");
                         }
+                    } catch (e) {
+                        wise_util.info("could not read target Description: " + e.description);
                     }
-                    if (!enumerated_any)
-                        wise_util.info("  (for...in enumerated no properties - expected for a COM object)");
-
-                    wise_util.info("===== Polar-field probe (candidate properties):");
-                    var polar_field = discover_polar_field(tgt, polar_params);
-                    if (polar_field != null)
-                        wise_util.info("polar parameters taken from field '" + polar_field + "'");
-                    wise_util.info("===== End discovery.");
 
                     try {
 
@@ -135,26 +122,23 @@
                                        ", exposure=" + polar_params.exposure +
                                        ", number-of-exposures=" + polar_params.number_of_exposures +
                                        ", gain=" + polar_params.gain +
-                                       ", offset=" + polar_params.offset);
-
-                        if (polar_params.offset != null)
-                            wise_util.warning("polar: 'offset' is parsed but not yet wired to the camera.");
+                                       ", offset=" + polar_params.offset +
+                                       ", dark=" + polar_params.dark +
+                                       ", bias=" + polar_params.bias);
 
                         var saved_focus_position = focuser.Position;
 
                         move_focuser(saved_focus_position + polar_params.focus_offset);
                         move_flipmirror("polar");
-                        for (var n = 0; n < polar_params.number_of_exposures; n++) {
-                            wise_util.info("polar: exposure " + (n + 1) + " of " + polar_params.number_of_exposures);
-                            qhy550p.Expose(
-                                polar_params.exposure,
-                                latest_imgFile,
-                                polar_params.gain,
-                                polar_params.offset,
-                                n + 1,
-                                polar_params.number_of_exposures
-                            );
-                        }
+                        qhy550p.Take_Exposures(
+                            polar_params.exposure,
+                            latest_imgFile,
+                            polar_params.gain,
+                            polar_params.offset,
+                            polar_params.number_of_exposures,
+                            polar_params.dark,
+                            polar_params.bias
+                        );
                         move_focuser(saved_focus_position);
                         move_flipmirror("main");
 
@@ -206,42 +190,6 @@
                     return new Date().getTime() / 1000;
                 }
 
-                // Candidate property names that might carry the "[ polar ... ]" spec on a
-                // Scheduler Observation object. 'Description' is the documented field (ACP
-                // docs: "put a special string into the Description field of the Observation");
-                // the rest are probed defensively so discovery still works if it's elsewhere.
-                var polar_field_candidates = [
-                    "Description", "Comment", "Comments", "Notes",
-                    "ObsDescription", "ObservationDescription", "UserComment",
-                    "Caption", "Remarks", "UserName1", "UserName2"
-                ];
-
-                // Probe candidate string properties on `tgt` directly (immune to the COM
-                // for...in enumeration problem), log each readable one, and apply the first
-                // that parses as a polar spec to `params`. Returns the winning field name,
-                // or null if none carried a spec.
-                function discover_polar_field(tgt, params) {
-                    var found_field = null;
-                    for (var i = 0; i < polar_field_candidates.length; i++) {
-                        var name = polar_field_candidates[i];
-                        var value;
-                        try {
-                            value = tgt[name];
-                        } catch (e) {
-                            continue; // property does not exist on this object
-                        }
-                        if (value == null || typeof value != "string")
-                            continue;
-
-                        wise_util.info("  probe ." + name + " = [" + value + "]");
-                        if (found_field == null && parse_polar_parameters(value, params)) {
-                            found_field = name;
-                            wise_util.info("  .   ^-- POLAR SPEC found in ." + name);
-                        }
-                    }
-                    return found_field;
-                }
-
                 // Default polar parameters; callers layer tag-based and/or string-spec
                 // configuration on top of these.
                 function default_polar_parameters() {
@@ -251,12 +199,14 @@
                         exposure: default_exposure_seconds,
                         number_of_exposures: 1,
                         gain: default_gain,
-                        offset: default_offset
+                        offset: default_offset,
+                        dark: false,
+                        bias: false
                     };
                 }
 
                 // Parse a polar spec of the form:
-                //   [ polar focus-offset=N exposure=N.N number-of-exposures=N gain=N offset=N ]
+                //   [ polar focus-offset=N exposure=N.N number-of-exposures=N gain=N offset=N dark bias ]
                 // The spec may be embedded in surrounding free text (e.g. an Observation
                 // Description like "Target GRAL 1651 [ polar ... ]"); the first [ ... ] block
                 // is extracted. The 'polar' marker and keys are case-insensitive. The
@@ -302,6 +252,10 @@
                             updates.gain = parse_int_param(val, params.gain, key);
                         } else if (key == "offset") {
                             updates.offset = parse_int_param(val, params.offset, key);
+                        } else if (key == "dark") {
+                            updates.dark = (val == null) ? true : parseBool(val);
+                        } else if (key == "bias") {
+                            updates.bias = (val == null) ? true : parseBool(val);
                         } else {
                             wise_util.warning("parse_polar_parameters: ignoring unknown token '" + token + "'");
                         }
@@ -310,6 +264,14 @@
                     // Only treat this as a polar spec if the 'polar' marker was present.
                     if (!found_polar)
                         return false;
+
+                    // A dark frame must match the light's exposure time, so 'exposure=' is
+                    // mandatory whenever 'dark' is requested. (Bias frames are zero-length,
+                    // so they don't require it.)
+                    if (updates.dark && typeof updates.exposure == "undefined") {
+                        wise_util.warning("polar: 'dark' requires 'exposure=' to be specified; ignoring 'dark'.");
+                        updates.dark = false;
+                    }
 
                     params.do_polar = true;
                     for (var k in updates)
