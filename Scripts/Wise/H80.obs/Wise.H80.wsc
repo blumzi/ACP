@@ -50,9 +50,10 @@
                 var label = wise_util.mklabel("H80");
 
                 var default_exposure_seconds = 300; // seconds
-                var default_focuser_offset = 240; // steps
+                var default_focuser_offset = -240; // steps
                 var default_gain = 85; // QHY550P gain (0-100)
                 var default_offset = 15; // QHY550P offset (0-100)
+                var default_number_of_exposures = 5;
 
                 var latest_imgFile = null;
 
@@ -197,7 +198,7 @@
                         do_polar: false,
                         focus_offset: default_focuser_offset,
                         exposure: default_exposure_seconds,
-                        number_of_exposures: 1,
+                        number_of_exposures: default_number_of_exposures,
                         gain: default_gain,
                         offset: default_offset,
                         dark: false,
@@ -264,14 +265,6 @@
                     // Only treat this as a polar spec if the 'polar' marker was present.
                     if (!found_polar)
                         return false;
-
-                    // A dark frame must match the light's exposure time, so 'exposure=' is
-                    // mandatory whenever 'dark' is requested. (Bias frames are zero-length,
-                    // so they don't require it.)
-                    if (updates.dark && typeof updates.exposure == "undefined") {
-                        wise_util.warning("polar: 'dark' requires 'exposure=' to be specified; ignoring 'dark'.");
-                        updates.dark = false;
-                    }
 
                     params.do_polar = true;
                     for (var k in updates)
