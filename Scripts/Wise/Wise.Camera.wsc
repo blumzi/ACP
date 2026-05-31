@@ -80,11 +80,8 @@
             camera.cooleron = true
         end if
 
-        if wise_util.observatory = "h80" then
-            dim qhy550p : set qhy550p = createobject("Wise.H80.QHY550P")
-            qhy550p.cooldown
-            camera_info "start qhy550p cooling to " & qhy550p.set_point & "..."
-        end if
+        ' The H80 polar camera (QHY550P) is cooled/warmed via the ACP
+        ' ScriptStart / Shutdown user actions, not here.
 
         if camera.temperature <= camera.temperaturesetpoint then
             camera_info "temperature (" & camera.temperature & ") is low enough (setpoint: " & camera.temperaturesetpoint & ")."

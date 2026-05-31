@@ -131,6 +131,8 @@ Edit History:
                     // Return True to continue ACP script, False to stop ACP script
                     //------------------------------------------------------------------------------
                     function ScriptStart() {
+                        wise_util.info("[UserActions] ScriptStart: cooling the polar camera");
+                        wise_h80.Cooldown();
                         return true;
                     }
 
@@ -224,6 +226,8 @@ function ImageEnd(ImageFile) {
 // AcquireSupport will run its built-in parking and camera warmup code.
 //------------------------------------------------------------------------------
 function Shutdown() {
+                    wise_util.info("[UserActions] Shutdown: warming the polar camera");
+                    wise_h80.Warmup();
                     return false;                                   // Use built-in shutdown logic
                 }
 

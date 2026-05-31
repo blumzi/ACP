@@ -36,6 +36,10 @@
             <method name="ImageComplete">
                 <parameter name="ImageFile" />
             </method>
+            <method name="Cooldown">
+            </method>
+            <method name="Warmup">
+            </method>
         </public>
         <object id="FSO" progid="Scripting.FileSystemObject" events="false" reference="false" />
 
@@ -61,6 +65,30 @@
                 wise_util.info("H80.ImageComplete: '" + imgFile + "'");
                 latest_imgFile = imgFile;
             }
+
+                // Public entry: Cooldown() -- start cooling the polar camera.
+                // Hooked from the ScriptStart user action.
+            function Cooldown() {
+                    var obs = wise_util.observatory
+                    if (obs != "h80") {
+                        wise_util.warning("This observatory is '" + obs + "', not 'h80', skipping.");
+                        return;
+                    }
+                    wise_util.info("H80.Cooldown: cooling polar camera to " + qhy550p.set_point + " deg C");
+                    qhy550p.cooldown();
+                }
+
+                // Public entry: Warmup() -- warm the polar camera back to ambient.
+                // Hooked from the Shutdown user action.
+            function Warmup() {
+                    var obs = wise_util.observatory
+                    if (obs != "h80") {
+                        wise_util.warning("This observatory is '" + obs + "', not 'h80', skipping.");
+                        return;
+                    }
+                    wise_util.info("H80.Warmup: warming polar camera");
+                    qhy550p.warmup();
+                }
 
                 // Public entry: TargetEnd(Plan, Target, NextTarget)
             function TargetEnd(pl, tgt, nexttgt) {
@@ -138,7 +166,8 @@
                             polar_params.offset,
                             polar_params.number_of_exposures,
                             polar_params.dark,
-                            polar_params.bias
+                            polar_params.bias,
+                            tgt.Name
                         );
                         move_focuser(saved_focus_position);
                         move_flipmirror("main");

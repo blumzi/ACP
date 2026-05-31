@@ -26,7 +26,7 @@ class QHY550P:
     _reg_class_spec_ = "QHY550P.QHY550P"
     _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER
 
-    _public_methods_ = ["take_exposures", "cooldown"]
+    _public_methods_ = ["take_exposures", "cooldown", "warmup"]
     _public_attrs_ = ["set_point"]
     _label = "QHY550P: "
 
@@ -61,6 +61,33 @@ class QHY550P:
             self.connected = False
             return False
 
+    def _engage_cooler(self, target_temp: float | None = None) -> bool:
+        """
+        Turn the cooler on at `target_temp` (default: self.set_point) on the
+        current connection. Idempotent; safe to call repeatedly.
+
+        The QHYCCD_GUIDER driver reports a fixed 25.0 placeholder for
+        CCDTemperature (and 0.0 for the set-point) until the cooler is engaged
+        on THIS connection -- cooler state is not shared across connections.
+        cooldown() and expose() use separate connections, so each must engage
+        the cooler to read a valid temperature.
+        """
+        try:
+            cam = self._cam
+            if cam is None:
+                return False
+            if not cam.CanSetCCDTemperature:
+                self.warning("driver cannot set CCD temperature; leaving cooler as-is")
+                return False
+            if target_temp is None:
+                target_temp = self._set_point
+            cam.SetCCDTemperature = float(target_temp)  # ASCOM set-point property
+            cam.CoolerOn = True
+            return True
+        except Exception as e:
+            self.warning(f"could not engage cooler: {e}")
+            return False
+
     def disconnect(self) -> bool:
         """Disconnect from the camera."""
         try:
@@ -85,23 +112,47 @@ class QHY550P:
                 if not self.connect():
                     return False
 
-            cam = self._cam
-
             if target_temp is None:
                 target_temp = self._set_point
 
-            if not cam.CanSetCCDTemperature:
-                self.error("driver does not support setting the CCD temperature")
-                return False
-
             self.info(f"setting cooler set point to {target_temp} deg C")
-            cam.CoolerOn = True
-            cam.SetCCDTemperature = float(target_temp)  # ASCOM set-point property
-            return True
+            return self._engage_cooler(target_temp)
 
         except Exception as e:
             # e.g. the driver raises InvalidValueException for an out-of-range set-point
             self.error(f"cooldown failed: {e}")
+            return False
+
+    def warmup(self) -> bool:
+        """
+        Warm the sensor back toward ambient: raise the set-point and switch the
+        cooler off.
+
+        The QHY550P runs at a mild set-point (~-5 C), so no gradual hardware
+        ramp is needed; turning the cooler off lets it drift up to ambient
+        safely. Fire-and-forget: returns immediately, it does not wait to reach
+        ambient.
+        """
+        try:
+            if self._cam is None or not self._cam.Connected:
+                if not self.connect():
+                    return False
+
+            cam = self._cam
+
+            try:
+                if cam.CanSetCCDTemperature:
+                    self.info("warmup: raising set point to 5 deg C")
+                    cam.SetCCDTemperature = 5.0
+            except Exception as ex:
+                self.warning(f"warmup: could not raise set-point: {ex}")
+
+            cam.CoolerOn = False
+            self.info("warmup: cooler off; sensor will drift to ambient")
+            return True
+
+        except Exception as e:
+            self.error(f"warmup failed: {e}")
             return False
 
     def info(self, msg: str):
@@ -162,7 +213,8 @@ class QHY550P:
                     offset: int | None = None,
                     number_of_exposures: int = 1,
                     take_dark: bool = False,
-                    take_bias: bool = False) -> bool:
+                    take_bias: bool = False,
+                    object_name: str = "") -> bool:
         """
         Take `number_of_exposures` exposures in sequence, each a light frame
         (plus an optional matching dark and/or bias), saving every frame as a
@@ -180,21 +232,21 @@ class QHY550P:
         for n in range(1, m + 1):
             self.info(f"polar: light {n} of {m}")
             if not self.expose(duration, base_fits_file_name, gain, offset,
-                               n, m, "light"):
+                               n, m, "light", object_name):
                 return False
 
         # One matching dark (optional).
         if take_dark:
             self.info("polar: dark")
             if not self.expose(duration, base_fits_file_name, gain, offset,
-                               None, None, "dark"):
+                               None, None, "dark", object_name):
                 return False
 
         # One bias (optional).
         if take_bias:
             self.info("polar: bias")
             if not self.expose(duration, base_fits_file_name, gain, offset,
-                               None, None, "bias"):
+                               None, None, "bias", object_name):
                 return False
 
         # Park the mirror at "main".
@@ -210,7 +262,8 @@ class QHY550P:
                offset: int | None = None,
                n: int | None = None,
                m: int | None = None,
-               frame_type: Literal["light", "dark", "bias"] = "light") -> bool:
+               frame_type: Literal["light", "dark", "bias"] = "light",
+               object_name: str = "") -> bool:
         """
         Take a single exposure of the given frame type and save it as a FITS file.
 
@@ -240,6 +293,12 @@ class QHY550P:
                     return False
 
             cam = self._cam
+
+            # Engage the cooler on this connection so the driver reports the
+            # real CCDTemperature (see _engage_cooler) rather than its 25.0
+            # placeholder; the sensor is already held cold by the cooldown at
+            # ScriptStart, so this just re-asserts on the exposure connection.
+            self._engage_cooler()
 
             self.info(f"name: {cam.Name}")
             self.info(f"size: {cam.CameraXSize}x{cam.CameraYSize}")
@@ -296,7 +355,7 @@ class QHY550P:
                 return False
             self.info(f"starting {exp_duration} seconds {frame_type} exposure")
             cam.StartExposure(exp_duration, light_flag)
-            return self._readout(cam, exp_duration, base_fits_file_name, frame_type, n, m)
+            return self._readout(cam, exp_duration, base_fits_file_name, frame_type, n, m, object_name)
 
         except Exception as e:
             self.error(traceback.format_exc())
@@ -308,7 +367,8 @@ class QHY550P:
                  base_fits_file_name: str,
                  frame_type: Literal["light", "dark", "bias"] = "light",
                  n: int | None = None,
-                 m: int | None = None) -> bool:
+                 m: int | None = None,
+                 object_name: str = "") -> bool:
         """
         Wait for the in-progress exposure to finish, retrieve the image array,
         build the FITS header and write the file.
@@ -377,6 +437,7 @@ class QHY550P:
             hdr["SIMPLE"]   = True
             hdr["INSTRUME"] = "QHY550P"
             hdr["IMAGETYP"] = (image_type, "Frame type")
+            hdr["OBJECT"]   = (object_name, "Target / object name")
             hdr["EXPTIME"]  = (float(duration), "Exposure time in seconds")
             hdr["EXPOSURE"] = (float(duration), "Exposure time in seconds")
             hdr["DATE-OBS"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
@@ -411,7 +472,7 @@ class QHY550P:
 
             parts = base_fits_file_name.split("-")
 
-            filter = parts[1]
+            filter = parts[1].strip()
             hdr["FILTER"] = filter
 
             # Write FITS
