@@ -355,9 +355,15 @@ class QHY550P:
             img_variant = cam.ImageArrayVariant
             vbarray_data = img_variant  # comes in as a nested tuple via pythoncom
 
-            # Convert to numpy array as 16-bit unsigned ints, keeping ASCOM's
-            # native (width, height) orientation (customer wants it un-transposed).
+            # Convert to numpy array as 16-bit unsigned ints.
             arr = np.array(vbarray_data, dtype=np.uint16)
+
+            # Reorient to match the MaxIm DL frame. The QHY550P/ASCOM readout
+            # comes off the sensor mirrored and rotated relative to how MaxIm DL
+            # presents the same camera. Flip left-right, then rotate 90 deg
+            # clockwise, so polar frames share the orientation of the main-camera
+            # (MaxIm DL) images of the same field.
+            arr = np.ascontiguousarray(np.rot90(np.fliplr(arr), 3))
 
             # Conventional IMAGETYP values (MaxIm DL / ACP convention).
             image_type = {
