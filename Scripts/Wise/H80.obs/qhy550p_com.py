@@ -472,7 +472,7 @@ class QHY550P:
 
             parts = base_fits_file_name.split("-")
 
-            filter = parts[1].strip()
+            filter = parts[2].strip()
             hdr["FILTER"] = filter
 
             # Write FITS
