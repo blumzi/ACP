@@ -76,6 +76,17 @@
                     }
                     wise_util.info("H80.Cooldown: cooling polar camera to " + qhy550p.set_point + " deg C");
                     qhy550p.cooldown();
+
+                    // Safety net: ensure the flip mirror is at the main camera at the
+                    // start of every run. If a previous run was aborted mid-polar-
+                    // sequence (dawn-stop / Abort) the mirror may have been left at
+                    // "polar", which would leave the main science camera blind. Re-park
+                    // it here before any imaging begins.
+                    try {
+                        move_flipmirror("main");
+                    } catch (e) {
+                        wise_util.warning("H80.Cooldown: could not park flip mirror to main: " + e.description);
+                    }
                 }
 
                 // Public entry: Warmup() -- warm the polar camera back to ambient.
@@ -88,6 +99,17 @@
                     }
                     wise_util.info("H80.Warmup: warming polar camera");
                     qhy550p.warmup();
+
+                    // Guaranteed end-of-night cleanup: the Shutdown user action calls
+                    // Warmup(), so this runs when the Scheduler shuts down at dawn -- even
+                    // if a mid-sequence abort hard-terminated the script before TargetEnd's
+                    // abort handler could run. Make sure the flip mirror is back at the
+                    // main camera so the next night's science imaging isn't blind.
+                    try {
+                        move_flipmirror("main");
+                    } catch (e) {
+                        wise_util.warning("H80.Warmup: could not park flip mirror to main: " + e.description);
+                    }
                 }
 
                 // Public entry: TargetEnd(Plan, Target, NextTarget)
@@ -155,30 +177,96 @@
                                        ", dark=" + polar_params.dark +
                                        ", bias=" + polar_params.bias);
 
+                        // Let ACP interrupt the polar cycle. The exposure loop below
+                        // calls acp_util.WaitForMilliseconds once per second, and ACP
+                        // delivers a pending Abort (user button or Scheduler dawn-stop)
+                        // at that call -- so the run no longer has to wait for the whole
+                        // cycle to finish. Marking this Util instance Abortable arms that.
+                        try { acp_util.Abortable = true; } catch (eab) {}
+
                         var saved_focus_position = focuser.Position;
 
                         move_focuser(saved_focus_position + polar_params.focus_offset);
                         move_flipmirror("polar");
-                        qhy550p.Take_Exposures(
-                            polar_params.exposure,
-                            latest_imgFile,
-                            polar_params.gain,
-                            polar_params.offset,
-                            polar_params.number_of_exposures,
-                            polar_params.dark,
-                            polar_params.bias,
-                            tgt.Name
-                        );
-                        move_focuser(saved_focus_position);
-                        move_flipmirror("main");
 
-                        wise_util.info("TargetEnd completed successfully.");
+                        try {
+                            run_polar_sequence(polar_params, latest_imgFile, tgt.Name);
+                            move_flipmirror("main");
+                            move_focuser(saved_focus_position);
+                            wise_util.info("TargetEnd completed successfully.");
+                        } catch (eseq) {
+                            // ABORT HANDLER. The only thing that throws out of
+                            // run_polar_sequence is an ACP Abort delivered by
+                            // acp_util.WaitForMilliseconds (user Abort button or Scheduler
+                            // dawn-stop) -- ordinary polar failures/timeouts are handled
+                            // inside run_polar_sequence and do not throw. So here we:
+                            //   1. disarm abort so the restore moves below aren't
+                            //      themselves interrupted,
+                            //   2. stop the in-progress exposure,
+                            //   3. restore the optics to the main-camera configuration
+                            //      (flip mirror -> main, focuser -> pre-polar position),
+                            //   4. return false so ACP ends the run cleanly (see
+                            //      UserActions.TargetEnd / AcquireImages "if(!TargetEnd) break").
+                            try { acp_util.Abortable = false; } catch (eab2) {}
+                            wise_util.warning("polar: aborted; restoring optics and ending run (" + eseq.description + ")");
+                            try { qhy550p.abort_exposures(); } catch (e2) {}
+                            try { move_flipmirror("main"); } catch (e3) { wise_util.warning("polar abort: flip mirror restore failed: " + e3.description); }
+                            try { move_focuser(saved_focus_position); } catch (e4) { wise_util.warning("polar abort: focuser restore failed: " + e4.description); }
+                            return false;
+                        }
 
                     } catch (e) {
                         wise_util.error("Exception: " + e.description);
                     }
 
                     latest_imgFile = null; // reset for next time
+                }
+
+                // Drive the polar exposure sequence one frame at a time, polling
+                // the (out-of-process) camera between one-second WaitForMilliseconds
+                // waits. Those waits are ACP's abort-delivery points, which is what
+                // makes the cycle interruptible mid-exposure. Throws on timeout.
+                function run_polar_sequence(params, imgFile, name) {
+                    qhy550p.begin_exposures(
+                        params.exposure,
+                        imgFile,
+                        params.gain,
+                        params.offset,
+                        params.number_of_exposures,
+                        params.dark,
+                        params.bias,
+                        name
+                    );
+
+                    var label;
+                    while ((label = qhy550p.start_next_frame()) != "") {
+                        wise_util.info("polar: exposing " + label);
+                        var start = getTimer();
+                        var timeout = params.exposure + 60; // seconds
+                        var last_report = start;
+                        while (!qhy550p.image_ready) {
+                            // Progress report every 5 seconds. This loop is where the
+                            // wait now happens, so the python side's own progress
+                            // logging (in _readout) never runs on this path.
+                            var elapsed = getTimer() - start;
+                            if ((getTimer() - last_report) >= 5) {
+                                wise_util.info("polar: " + label + ": " + qhy550p.camera_state +
+                                               " (elapsed: " + Math.round(elapsed) + "s of " +
+                                               params.exposure + "s)");
+                                last_report = getTimer();
+                            }
+                            if (elapsed > timeout) {
+                                // A stuck exposure must NOT throw -- throwing is reserved
+                                // for ACP aborts (handled by TargetEnd's abort handler).
+                                // Abandon the rest of the sequence and let the run continue.
+                                wise_util.error("polar: timeout waiting for image ready (" + label + "); abandoning sequence");
+                                qhy550p.abort_exposures();
+                                return;
+                            }
+                            acp_util.WaitForMilliseconds(1000); // ACP Abort delivered here (throws out)
+                        }
+                        qhy550p.read_current_frame();
+                    }
                 }
 
                 function move_flipmirror(camera) {

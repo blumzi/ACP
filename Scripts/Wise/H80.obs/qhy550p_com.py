@@ -26,8 +26,10 @@ class QHY550P:
     _reg_class_spec_ = "QHY550P.QHY550P"
     _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER
 
-    _public_methods_ = ["take_exposures", "cooldown", "warmup"]
-    _public_attrs_ = ["set_point"]
+    _public_methods_ = ["take_exposures", "cooldown", "warmup",
+                        "begin_exposures", "start_next_frame",
+                        "read_current_frame", "abort_exposures", "park_mirror"]
+    _public_attrs_ = ["set_point", "image_ready", "camera_state"]
     _label = "QHY550P: "
 
     def __init__(self):
@@ -36,6 +38,13 @@ class QHY550P:
         self.connected = False
         self._flip_mirror = None
         self._wise_util = win32com.client.Dispatch("Wise.Util")
+        # State for the interruptible (pollable) exposure sequence. See
+        # begin_exposures()/start_next_frame()/read_current_frame() below.
+        self._plan = []             # list of {frame_type, n, m[, exp_duration]}
+        self._plan_index = 0
+        self._current_frame = None
+        self._seq = None            # common params for the running sequence
+        self._aborted = False
 
     # ------------------------------------------------------------------
     # Public COM methods
@@ -48,6 +57,46 @@ class QHY550P:
     @set_point.setter
     def set_point(self, value: float):
         self._set_point = value
+
+    @property
+    def image_ready(self) -> bool:
+        """True once the in-progress exposure has been read off the sensor.
+
+        Cheap to poll; the JScript sequence loop calls this between
+        Util.WaitForMilliseconds waits so ACP can deliver an Abort mid-exposure.
+        """
+        try:
+            cam = self._cam
+            return bool(cam is not None and cam.Connected and cam.ImageReady)
+        except Exception:
+            return False
+
+    @property
+    def camera_state(self) -> str:
+        """The driver's CameraState as a short word ("exposing", "readingout", ...).
+
+        Cheap to poll; the JScript sequence loop reads it every few seconds to
+        report progress while an exposure is integrating.
+        """
+        try:
+            cam = self._cam
+            if cam is None or not cam.Connected:
+                return "disconnected"
+            return self._state_text(cam.CameraState)
+        except Exception:
+            return "unknown"
+
+    @staticmethod
+    def _state_text(state) -> str:
+        """ASCOM CameraStates value -> short word."""
+        match state:
+            case 0: return "idle"
+            case 1: return "waiting"
+            case 2: return "exposing"
+            case 3: return "readingout"
+            case 4: return "downloading"
+            case 5: return "error"
+            case _: return f"unknown({state})"
 
     def connect(self) -> bool:
         """Connect to the ASCOM QHYCCD_GUIDER camera driver."""
@@ -139,6 +188,7 @@ class QHY550P:
                     return False
 
             cam = self._cam
+            assert cam is not None and cam.connected, "camera not connected"
 
             try:
                 if cam.CanSetCCDTemperature:
@@ -255,44 +305,172 @@ class QHY550P:
 
         return True
 
-    def expose(self,
-               duration: float,
-               base_fits_file_name: str,
-               gain: int | None = None,
-               offset: int | None = None,
-               n: int | None = None,
-               m: int | None = None,
-               frame_type: Literal["light", "dark", "bias"] = "light",
-               object_name: str = "") -> bool:
-        """
-        Take a single exposure of the given frame type and save it as a FITS file.
+    # ------------------------------------------------------------------
+    # Interruptible (pollable) exposure sequence
+    #
+    # take_exposures() runs a whole sequence in one blocking COM call, so ACP
+    # cannot deliver an Abort until it returns (up to number_of_exposures *
+    # duration seconds). These four entry points let the ACP (JScript) side
+    # drive the sequence one frame at a time and, crucially, poll image_ready
+    # between Util.WaitForMilliseconds waits -- which is where ACP delivers an
+    # Abort (user button or Scheduler dawn-stop). The camera is only ever
+    # touched by this single COM apartment thread; no background threads.
+    #
+    #   begin_exposures(...)              # plan the frames, connect, cool
+    #   while start_next_frame() != "":   # StartExposure for the next frame
+    #       while not image_ready: wait   # <-- ACP Abort delivered in this wait
+    #       read_current_frame()          # read + save the FITS
+    #   abort_exposures()                 # AbortExposure + park mirror (on stop)
+    # ------------------------------------------------------------------
 
-        frame_type drives mirror position, the ASCOM Light flag and the exposure
-        duration:
+    def begin_exposures(self,
+                        duration: float,
+                        base_fits_file_name: str,
+                        gain: int | None = None,
+                        offset: int | None = None,
+                        number_of_exposures: int = 1,
+                        take_dark: bool = False,
+                        take_bias: bool = False,
+                        object_name: str = "") -> bool:
+        """
+        Plan (but do not yet start) an interruptible frame sequence: a light
+        frame numbered n-of-m for each of number_of_exposures, plus an optional
+        single dark and/or bias. Connects and re-asserts the cooler up front.
+
+        Non-blocking. Drive the sequence with start_next_frame() / image_ready /
+        read_current_frame(); stop it early with abort_exposures().
+        """
+        try:
+            m = int(number_of_exposures) if number_of_exposures else 1
+            plan = [{"frame_type": "light", "n": n, "m": m} for n in range(1, m + 1)]
+            if take_dark:
+                plan.append({"frame_type": "dark", "n": None, "m": None})
+            if take_bias:
+                plan.append({"frame_type": "bias", "n": None, "m": None})
+
+            self._plan = plan
+            self._plan_index = 0
+            self._current_frame = None
+            self._aborted = False
+            self._seq = {"duration": float(duration),
+                         "base": base_fits_file_name,
+                         "gain": gain,
+                         "offset": offset,
+                         "object": object_name}
+
+            if self._cam is None or not self._cam.Connected:
+                if not self.connect():
+                    return False
+            self._engage_cooler()
+
+            self.info(f"polar: sequence of {len(plan)} frame(s) prepared")
+            return True
+        except Exception:
+            self.error(traceback.format_exc())
+            self._aborted = True
+            return False
+
+    def start_next_frame(self) -> str:
+        """
+        Start the next frame's exposure (mirror move + StartExposure) and return
+        a short label like "light 2 of 5" (or "dark"/"bias"). Returns "" when the
+        plan is exhausted or the sequence was aborted.
+
+        Apart from the bounded flip-mirror move, this returns immediately after
+        StartExposure -- the caller polls image_ready while the sensor integrates.
+        """
+        try:
+            if self._aborted or self._plan_index >= len(self._plan):
+                return ""
+
+            fr = self._plan[self._plan_index]
+            seq = self._seq
+            exp = self._start_frame(seq["duration"], seq["gain"], seq["offset"],
+                                    fr["frame_type"])
+            if exp is None:
+                self._aborted = True
+                return ""
+
+            fr["exp_duration"] = exp
+            self._current_frame = fr
+            self._plan_index += 1
+
+            n, m, ft = fr["n"], fr["m"], fr["frame_type"]
+            return f"{ft} {n} of {m}" if (n and m) else ft
+        except Exception:
+            self.error(traceback.format_exc())
+            self._aborted = True
+            return ""
+
+    def read_current_frame(self) -> bool:
+        """
+        Read out and save the frame started by start_next_frame(). Call once
+        image_ready is True. Returns True on success.
+        """
+        try:
+            fr = self._current_frame
+            if fr is None:
+                return False
+            seq = self._seq
+            ok = self._readout(self._cam, fr["exp_duration"], seq["base"],
+                               fr["frame_type"], fr["n"], fr["m"], seq["object"])
+            self._current_frame = None
+            return ok
+        except Exception:
+            self.error(traceback.format_exc())
+            return False
+
+    def abort_exposures(self) -> bool:
+        """
+        Abort any in-progress exposure and end the sequence, then park the mirror
+        at "main". Idempotent and safe to call at any time (e.g. from the ACP
+        side when a run is being aborted). Never raises.
+        """
+        self._aborted = True
+        self._current_frame = None
+        try:
+            cam = self._cam
+            if cam is not None and cam.Connected and getattr(cam, "CanAbortExposure", False):
+                cam.AbortExposure()
+                self.info("polar: exposure aborted")
+        except Exception as e:
+            self.warning(f"abort_exposures: could not abort exposure: {e}")
+        try:
+            self.flip_mirror_to_camera("main")
+        except Exception as e:
+            self.warning(f"abort_exposures: could not park mirror: {e}")
+        return True
+
+    def park_mirror(self) -> bool:
+        """Park the flip mirror at the main camera. Returns True on success."""
+        return self.flip_mirror_to_camera("main")
+
+    def _start_frame(self,
+                     duration: float,
+                     gain: int | None,
+                     offset: int | None,
+                     frame_type: Literal["light", "dark", "bias"] = "light") -> float | None:
+        """
+        Configure the camera for one frame and START the exposure. Returns the
+        actual exposure duration used (seconds), or None on failure.
+
+        This is the non-blocking front half of a single frame: it does NOT wait
+        for or read out the image. frame_type drives mirror position, the ASCOM
+        Light flag and the exposure duration:
           - "light": mirror -> polar, Light=True,  exposure = duration
           - "dark" : mirror -> main,  Light=False, exposure = duration
           - "bias" : mirror -> main,  Light=False, exposure = ExposureMin
         With the mirror at "main" the (shutterless) polar sensor sees no light,
         so it acts as a closed shutter for dark/bias frames.
-
-        Parameters
-        ----------
-        duration            : float   Exposure duration in seconds
-        base_fits_file_name : str     Base name for the output FITS file
-        gain                : int     Camera gain (0 = driver default)
-        offset              : int     Camera offset (0 = driver default)
-        frame_type          : str     "light", "dark" or "bias"
-
-        Returns
-        -------
-        bool  True on success, False on failure
         """
         try:
             if self._cam is None or not self._cam.Connected:
+                self.info("camera not connected, attempting to connect...")
                 if not self.connect():
-                    return False
+                    return None
 
             cam = self._cam
+            assert cam is not None and cam.connected, "camera not connected"
 
             # Engage the cooler on this connection so the driver reports the
             # real CCDTemperature (see _engage_cooler) rather than its 25.0
@@ -306,7 +484,7 @@ class QHY550P:
 
             if duration < cam.ExposureMin or duration > cam.ExposureMax:
                 self.error(f"duration {duration} is out of range [{cam.ExposureMin}, {cam.ExposureMax}]")
-                return False
+                return None
 
             self.info(f"setting binning = 1")
             cam.BinX = 1
@@ -329,15 +507,16 @@ class QHY550P:
                     except Exception as ex:
                         self.warning(f"failed to set gain: {ex=}")
 
-            # Set offset if the driver supports it
-            try:
-                self.info(f"setting offset to {offset}")
-                cam.Offset = offset
-            except Exception as ex:
-                self.warning(f"failed to set offset: {ex=}")
+            # This driver does not support offset.
+            # try:
+            #     self.info(f"setting offset to {offset}")
+            #     cam.Offset = offset
+            # except Exception as ex:
+            #     self.warning(f"failed to set offset: {ex=}")
 
-            if cam.CCDTemperature >= self.set_point:
-                self.warning(f"camera temperature ({cam.CCDTemperature} deg C) is above set point ({self.set_point} deg C)")
+            TOO_HOT = 0.5  # deg C above set-point
+            if cam.CCDTemperature - self.set_point > TOO_HOT:
+                self.warning(f"camera temperature ({cam.CCDTemperature} deg C) is more than {TOO_HOT} deg C above set point ({self.set_point} deg C)")
 
             # Frame-type-specific exposure parameters.
             if frame_type == "light":
@@ -348,18 +527,43 @@ class QHY550P:
                 camera, light_flag, exp_duration = "main", False, float(cam.ExposureMin)
             else:
                 self.error(f"unknown frame_type '{frame_type}'")
-                return False
+                return None
 
             # Point ("polar") or block ("main") the beam, then expose.
             if not self.flip_mirror_to_camera(camera):
-                return False
+                return None
             self.info(f"starting {exp_duration} seconds {frame_type} exposure")
             cam.StartExposure(exp_duration, light_flag)
-            return self._readout(cam, exp_duration, base_fits_file_name, frame_type, n, m, object_name)
+            return exp_duration
 
-        except Exception as e:
+        except Exception:
             self.error(traceback.format_exc())
+            return None
+
+    def expose(self,
+               duration: float,
+               base_fits_file_name: str,
+               gain: int | None = None,
+               offset: int | None = None,
+               n: int | None = None,
+               m: int | None = None,
+               frame_type: Literal["light", "dark", "bias"] = "light",
+               object_name: str = "") -> bool:
+        """
+        Take a single exposure of the given frame type and save it as a FITS file.
+
+        Blocking convenience wrapper used by take_exposures(): start the frame,
+        wait for it (inside _readout), then save. For the interruptible path the
+        ACP side calls _start_frame()'s public cousins instead (start_next_frame /
+        image_ready / read_current_frame).
+
+        Returns True on success, False on failure.
+        """
+        exp_duration = self._start_frame(duration, gain, offset, frame_type)
+        if exp_duration is None:
             return False
+        return self._readout(self._cam, exp_duration, base_fits_file_name,
+                             frame_type, n, m, object_name)
 
     def _readout(self,
                  cam,
@@ -385,14 +589,7 @@ class QHY550P:
 
             while not cam.ImageReady:
                 state = cam.CameraState
-                match state:
-                    case 0: state_str = "idle"
-                    case 1: state_str = "waiting"
-                    case 2: state_str = "exposing"
-                    case 3: state_str = "readingout"
-                    case 4: state_str = "downloading"
-                    case 5: state_str = "error"
-                    case _: state_str = f"unknown({state})"
+                state_str = self._state_text(state)
 
                 if last_state != state:
                     self.info(f"state: changed from {last_state_str} to {state_str}")
@@ -443,10 +640,10 @@ class QHY550P:
             hdr["DATE-OBS"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
             hdr["GAIN"]     = (cam.Gain, "Camera gain setting")
 
-            try:
-                hdr["OFFSET"] = (cam.Offset, "Camera offset setting")
-            except Exception:
-                pass
+            # try:
+            #     hdr["OFFSET"] = (cam.Offset, "Camera offset setting")
+            # except Exception:
+            #     pass
 
             try:
                 hdr["CCD-TEMP"] = (cam.CCDTemperature, "CCD temperature deg C")

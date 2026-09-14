@@ -336,8 +336,12 @@ function TargetStart(Plan, Target, NextTarget) {
 //------------------------------------------------------------------------------
 function TargetEnd(Plan, Target, NextTarget) {
                     wise_util.info("[UserActions] calling wise_h80.TargetEnd for target '" + Target.Name + "'");
-                    wise_h80.TargetEnd(Plan, Target, NextTarget);
-                    return true;
+                    // wise_h80.TargetEnd returns false only when it caught an ACP abort,
+                    // restored the optics, and wants the run to end. Every other result
+                    // (including the undefined it returns on the normal/skip paths) means
+                    // "continue the run". Returning false here makes ACP terminate the run.
+                    var result = wise_h80.TargetEnd(Plan, Target, NextTarget);
+                    return (result === false) ? false : true;
                 }
 
                 ]]>
