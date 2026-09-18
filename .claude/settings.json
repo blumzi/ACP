@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git -C \"c:\\\\Users\\\\mizpe\\\\source\\\\repos\\\\ACP\" status *)",
+      "PowerShell(git -C \"c:\\\\Users\\\\mizpe\\\\source\\\\repos\\\\ACP\" diff *)"
+    ]
+  }
+}
