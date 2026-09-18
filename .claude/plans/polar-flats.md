@@ -25,6 +25,12 @@ main camera and is exactly what a micro-polarizer camera wants. So:
 - **dawn** — polar frames run *after* the main sets, from `ScriptEnd` (SUP.Terminate, AutoFlat.vbs:1178),
   because the sky is brightening.
 
+**Hard constraint: flats never move the focuser.** Only the flip mirror moves. At dusk our sequence runs
+in the middle of AutoFlat's run, after it has applied the filter's focus offset, so leaving the focuser
+anywhere but where AutoFlat put it would corrupt its own sets. Consequence to accept: polar flats are
+taken at the main camera's focus, not at the polar lights' `-240` offset, so dust shadows image at a
+slightly different size than in the lights.
+
 Note AutoFlat drives MaxIm directly (AutoFlat.vbs:1471, `Camera.Expose` at :1585), so `ImageStart` /
 `ImageEnd` never fire during a flat run — `ScriptStart`, `SlewStart` / `SlewEnd` and `ScriptEnd` are the
 only hooks available.
@@ -53,8 +59,8 @@ In `parse_polar_parameters` (Wise.H80.wsc:335):
 - [ ] New `flat` marker sets `params.flat = true`. Guard both ways: the flat path ignores a spec without
       `flat`, `TargetEnd` ignores a spec with it.
 - [ ] New keys: `number-of-exposures` (default **1** on the flat path), `target-adu`, `adu-tolerance`,
-      `min-exposure`, `max-exposure`, `max-minutes`. `focus-offset`, `gain`, `offset` carry over.
-- [ ] `dark` / `bias` in a flat spec: warn and ignore.
+      `min-exposure`, `max-exposure`, `max-minutes`. `gain` and `offset` carry over.
+- [ ] `dark` / `bias` / `focus-offset` in a flat spec: warn and ignore — flats never move the focuser.
 - [ ] New `read_flat_spec(planPath)`: open the plan, try the parser **line by line** — whole-file parsing
       would span two bracket blocks (`indexOf("[")` / `lastIndexOf("]")` at :340).
 - [ ] Separate `default_polar_flat_parameters()` so flat defaults never drift into light-frame defaults.
@@ -79,8 +85,8 @@ In `parse_polar_parameters` (Wise.H80.wsc:335):
 Public `FlatsBegin()` (dusk) and `FlatsEnd()` (dawn), both delegating to `run_polar_flats(dawn)`:
 
 1. [ ] Read the spec; absent or `polar=false` -> one log line, return.
-2. [ ] Save focuser position, `move_focuser(saved + focus-offset)`, `move_flipmirror("polar")`,
-   `acp_util.Abortable = true`.
+2. [ ] `move_flipmirror("polar")`, `acp_util.Abortable = true`. **No focuser move** — log the focuser
+   position as found, for the record, and leave it alone.
 3. [ ] Seed `intv` = min-exposure at dusk / max-exposure at dawn; `accel` = 1.05 PM / 0.95 AM
    (AutoFlat.vbs:803-815), with **our** bounds, not AutoFlatConfig's 3/90 s.
 4. [ ] Converge: expose -> mean -> in band (`target +/- tolerance`) accept; else
@@ -89,10 +95,10 @@ Public `FlatsBegin()` (dusk) and `FlatsEnd()` (dawn), both delegating to `run_po
    (dusk-too-dark / dawn-too-bright). Same structure as AutoFlat.vbs:1728-1800. Enforce `max-minutes`.
 5. [ ] Take the N keepers, re-applying the correction after each so `intv` carries forward —
    AutoFlat's ByRef behavior.
-6. [ ] Restore: mirror -> main, focuser -> saved.
+6. [ ] Restore: mirror -> main. Nothing else to undo.
 
 **Abort decision:** at dusk we are inside `SlewEnd`, where returning false raises an error
-(AcquireSupport.wsc:5142). So restore optics and return **true**; ACP re-delivers the abort at its own
+(AcquireSupport.wsc:5142). So return the mirror to main and return **true**; ACP re-delivers the abort at its own
 next wait. Only the dawn path (`ScriptEnd`) can end quietly. Abort is only delivered at
 `Util.WaitForMilliseconds` while `Util.Abortable = True`.
 
@@ -116,9 +122,9 @@ trail in one file, plus the trace file. No new logging machinery, but make it de
       cameras' numbers read side by side.
 - [ ] Log at every decision point: hook entry (script name, dawn flag, plan path); spec found (echo the
       raw line) or "no polar flat spec"; parsed parameters; ADU ceiling and clamps in use; each
-      iteration's exposure / mean / decision; each 15 s wait with elapsed total; optics moves; each file
-      written; completion with elapsed time and final exposure; every abandon reason; both restore paths
-      (normal and abort).
+      iteration's exposure / mean / decision; each 15 s wait with elapsed total; mirror moves and the
+      focuser position as found (never moved); each file written; completion with elapsed time and final
+      exposure; every abandon reason; both mirror-restore paths (normal and abort).
 
 A good dusk run should read roughly:
 
@@ -129,26 +135,27 @@ polar-flat: target 1600 ADU +/- 600 (MaxADU 4095), exposure 0.05-30 s, seed 0.05
 polar-flat: TEST 0.05 s -> mean 3980 (too light), scaling to 0.02 s
 polar-flat: FLAT 1 of 3: 0.02 s -> mean 1712, wrote PolarFlat-20260920-dusk-001.fts
 ...
-polar-flat: done, 3 frames in 1.4 min, final exposure 0.03 s; optics restored
+polar-flat: done, 3 frames in 1.4 min, final exposure 0.03 s; mirror back to main (focuser untouched at 18432)
 ```
 
 ## Phase 6 — Verification
 
 - [ ] Parser checked offline against sample lines (hyphen/underscore, `polar=false`, missing `flat`,
       junk tokens). No telescope needed.
-- [ ] Daytime plumbing run: mirror + focuser moves and one short frame with the dome shut. Checks
-      naming, logging, restore — not photometry.
+- [ ] Daytime plumbing run: mirror move and one short frame with the dome shut, confirming the focuser
+      position is identical before and after. Checks naming, logging, restore — not photometry.
 - [ ] First dusk with `number_of_exposures=1` and a conservative `max-minutes`; compare the AutoFlat log
       against the previous night — main flats' start time and frame count must be unchanged.
 - [ ] First dawn likewise.
-- [ ] Abort mid-sequence: optics restored, run ends cleanly, no stuck mirror.
+- [ ] Abort mid-sequence: mirror back at main, focuser unmoved, run ends cleanly.
 - [ ] Regression: spec removed -> exactly one "no polar flat spec" line, nothing else.
 
 ## Phase 7 — Docs
 
 - [ ] Add a Flats section to `QHY550P parameters in Scheduler plans.md`: the two plan-file paths, the
-      grammar, defaults, dusk-before / dawn-after placement and why, how to turn it off for a night, and
-      where to read the log.
+      grammar, defaults, dusk-before / dawn-after placement and why, that the focuser is never moved for
+      flats (and what that means for dust shadows), how to turn it off for a night, and where to read the
+      log.
 
 ## Risks
 
@@ -159,3 +166,4 @@ polar-flat: done, 3 frames in 1.4 min, final exposure 0.03 s; optics restored
 | Polar ADU scale unknown (12-bit sensor) | Target defaults to a fraction of `MaxADU`, never a copied 20000 |
 | `ScriptEnd` is not called on a script error | Dawn flats simply skipped that night — logged by absence; acceptable |
 | A `number-of-exposures` typo silently ignored | Hyphen normalization plus the existing unknown-token warning |
+| Flats at the main camera's focus, lights at `-240`: dust shadows image at different sizes | Accepted by design (focuser must not move during flats); revisit only if polar flats leave donuts that do not divide out |
