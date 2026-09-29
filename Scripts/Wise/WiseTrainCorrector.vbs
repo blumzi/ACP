@@ -846,7 +846,13 @@ Sub Main
     g_MinMoonDist = 0
     g_MoonSkips = 0
     g_MoonValidUntil = ""
-    Call Console.ReadLine("Minimum Moon distance in degrees (0 or empty = no limit)?", 0)
+    '
+    ' The second argument is the BUTTON SET, not a default value.  Passing 0 gets
+    '  "Bad buttons parameter in Console.ReadLine()" and the run dies here.  3 is what
+    '  ACP's own Train Corrector uses for the prompt above, and for every other
+    '  empty-input-is-meaningful prompt it ships.
+    '
+    Call Console.ReadLine("Minimum Moon distance in degrees (0 or empty = no limit)?", 3)
     buf = Console.LastReadResult
     If buf <> "" Then g_MinMoonDist = CDbl(buf)
 
