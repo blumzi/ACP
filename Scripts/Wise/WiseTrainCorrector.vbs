@@ -548,6 +548,20 @@ Function CheckSlewLimits(Az, Alt)
 
 End Function
 
+'
+' Attempts allowed per mapping point before giving up.  Generous: a legal point is normally
+' found in a handful of tries, so reaching this many means the constraints genuinely leave
+' nowhere to go, not that we were unlucky.
+'
+' DECLARED HERE, BESIDE THE LOOP THAT USES IT.  It first lived in the moon-exclusion section,
+'  and replacing that whole section with the JPL Horizons version deleted it - which ACP only
+'  reported once a run reached line 586, on the telescope, at 06:00 UT.  VBScript checks a
+'  declaration when execution arrives at it, not when the script compiles, so a syntax check
+'  cannot catch this.  Keeping it next to its only user is what stops a future edit to some
+'  other section taking it away again.
+'
+Const MAX_POINT_TRIES = 5000
+
 ' ----------------
 ' GeneratePoints() - Generate mapping points in east or west
 ' ----------------
