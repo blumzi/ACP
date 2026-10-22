@@ -381,8 +381,8 @@
     sub c28_shutdown
         dome_info "Telling ACP to Unslave the dome ..."
         acp_util.Dome.Slaved = false
-		c28_get_ready_to_move_shutter shutterClosed
-        get_shutter_to(shutterClosed)
+		c28_get_ready_to_move_shutter const_shutterClosed
+        get_shutter_to(const_shutterClosed)
     end sub
 
 
@@ -441,10 +441,10 @@
             dome_info "at parking position " & int(dome.azimuth) & " degrees"
         end if
 
-        if dome.shutterstatus = shutterClosed then
+        if dome.shutterstatus = const_shutterClosed then
             dome_info "shutter already closed"
         else
-            get_shutter_to shutterClosed
+            get_shutter_to const_shutterClosed
         end if
     end sub
 
