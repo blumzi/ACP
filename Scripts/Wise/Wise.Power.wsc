@@ -4,7 +4,7 @@
     <![CDATA[
     'tabs=4
     -----------------------------------------------------------------------------------------
-    A wrapper to simplify the access to an ASCOM.{DigitalLoggers|Gude8211}.Switch object
+    A wrapper to simplify the access to an ASCOM.{DigitalLoggers|Gude8211|IPPower9258}.Switch object
     ==================================================
 
     Script:         Wise.Power.wsc
@@ -13,7 +13,7 @@
     Requires:       Windows Script 5.6 or later (installed by ACP setup)
 
     Description:    This script provides a Wise.Power class which simplifies the
-                    access to an  ASCOM.{DigitalLoggers|Gude8211}.Switch object
+                    access to an  ASCOM.{DigitalLoggers|Gude8211|IPPower9258}.Switch object
                     
     Environment:    This is a Windows Script Component. Once registered (with regsvr32) it
                     provides ACP and its scripts with Weather information. This component
@@ -24,6 +24,7 @@
                     
     Edit History:
         08-May-2020   Initial Edit
+        22-Oct-2026   wise40 uses the IP9258; switching an unknown outlet name is fatal
     -----------------------------------------------------------------------------------------
     ]]>
 	</comment>
@@ -77,6 +78,9 @@
         elseif obs = "h80" then
             label = wise_util.mklabel("Power(Gude)")
             device_id = "ASCOM.Gude8211.Switch"
+        elseif obs = "wise40" then
+            label = wise_util.mklabel("Power(IP9258)")
+            device_id = "ASCOM.IPPower9258.Switch"
         else
             exit sub
         end if
