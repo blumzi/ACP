@@ -106,7 +106,7 @@
 
         port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
 
-        id = port_id(port_name)
+        id = required_port_id(port_name)
         ' wise_util.info "power_on(" & port_name & "), id: " & id & ", state: " & device.getswitch(id)
         device.setswitch id, true
         start_time = timer()
@@ -136,7 +136,7 @@
 
         port_name = ucase(left(port_name, 1)) & lcase(right(port_name, len(port_name) - 1))
 
-        id = port_id(port_name)
+        id = required_port_id(port_name)
         device.setswitch id, false
         start_time = timer()
         do while device.getswitch(id) and (timer() - start_time) <= timeout
@@ -156,10 +156,13 @@
     end sub
 
     function has_power(port_name)
-        if isempty(device) then
+        dim id : id = port_id(port_name)
+
+        ' An outlet this switch doesn't have reads as unpowered (e.g. "Telescope" on wise40)
+        if isempty(device) or isempty(id) then
             has_power = false
         else
-            has_power = device.getswitch(port_id(port_name))
+            has_power = device.getswitch(id)
         end if
     end function
 
@@ -183,6 +186,17 @@
                 exit function
             end if
         next
+    end function
+
+    '
+    ' port_id returns Empty for an unknown name, and Empty passed as a switch id is 0:
+    '  it would switch the first outlet. Never switch an outlet that wasn't asked for.
+    '
+    function required_port_id(port_name)
+        required_port_id = port_id(port_name)
+        if isempty(required_port_id) then
+            wise_util.fatal label, "no outlet named '" & port_name & "'"
+        end if
     end function
 
 
