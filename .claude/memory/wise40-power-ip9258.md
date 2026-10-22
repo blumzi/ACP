@@ -26,7 +26,13 @@ about what "telescope powered" means without an outlet.
 
 **Scheduler scripts aren't the live tree:** the Scheduler runs
 `C:\Users\Public\Documents\ACP Config\Scheduler\StartupObs.vbs`/`ShutdownObs.vbs`, which are copies.
-The repo's `Scheduler/ShutdownObs-Wise.vbs` differs: it also kills MaxIm, twice. Compare the two before
-assuming either describes what runs. See [[acp-scripts-are-the-live-tree]] for the half that *is* live.
+On 2026-10-22 (PRs #9, #10) the repo's `Scheduler/StartupObs-Wise.vbs` and `ShutdownObs-Wise.vbs` were
+made byte-identical to those live copies. The repo ones had drifted: the startup one launched **FocusMax
+V4** on wise40, which can't run here (ASCOM.Wise40's `focuser-com-interfaces` memory). Copy any later edit
+in both directions, and `cmp` the pairs before assuming either describes what runs. See
+[[acp-scripts-are-the-live-tree]] for the half that *is* live.
+
+**`Wise4ACP.iss` can't package them:** it still sources `Scripts\StartupObs-Wise.vbs`/`ShutdownObs-Wise.vbs`,
+which moved to `Scheduler\` in `e6eca32`.
 
 Related: [[wsc-registrations-lost]] (`Wise.Power` had never been registered), [[wsc-bare-property-name-is-empty]].
