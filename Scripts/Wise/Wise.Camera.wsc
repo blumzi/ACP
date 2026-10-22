@@ -61,7 +61,7 @@
     '
     ' set the name of the camera outlet as per the power switch
     '
-    if obs = "h80" then
+    if obs = "h80" or obs = "wise40" then
         camera_outlet="Camera"
     elseif obs = "c28" then
         camera_outlet="ccd"
@@ -159,14 +159,12 @@
             exit sub
         end if
 
-        if not obs = "wise40" then
-            if wise_power.has_power(camera_outlet) then
-                camera_info "power is ON"
-            else
-                wise_power.power_on(camera_outlet)
-                camera_info "Sleeping 10 seconds"
-                wise_util.sleep 10
-            end if
+        if wise_power.has_power(camera_outlet) then
+            camera_info "power is ON"
+        else
+            wise_power.power_on(camera_outlet)
+            camera_info "Sleeping 10 seconds"
+            wise_util.sleep 10
         end if
 
 		set camera = createobject("MaxIm.CCDCamera")
@@ -212,10 +210,8 @@
             wise_util.sleep 5
         end if
          
-        if not obs = "wise40" then
-            if wise_power.has_power(camera_outlet) then
-                wise_power.power_off(camera_outlet)
-            end if
+        if wise_power.has_power(camera_outlet) then
+            wise_power.power_off(camera_outlet)
         end if
 
         wise_util.task_kill label & "killing MaxIM DL ...", "MaxIm_DL.exe"
