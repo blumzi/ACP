@@ -33,7 +33,7 @@ Scripts\ itself  --  COPY.
 
     C:\Program Files (x86)\ACP Obs Control\Scripts
 
-Scripts\Wise is the ONLY junction under ACP's Scripts folder, so everything beside it - FS2_Sync.vbs
+Scripts\Wise is the ONLY junction under ACP's Scripts folder, so everything beside it - c28_Sync.vbs
 here - is an ordinary file that has to be put there by hand, and will drift from this repository if
 it is then edited in place.
 
