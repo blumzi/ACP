@@ -14,6 +14,8 @@ Arie's goals (2026-10-23):
 
 **Decision: push over SSH from dome-pc; the targets keep no git clones.** The old clones on c28-pc (`C:\Users\mizpe\source\repos\blumzi\ACP`, 41 commits behind, with uncommitted work including an untracked `c28_Sync.vbs`) and h80-pc (`C:\Users\mizpe\source\repos\ACP`, 17 behind) are to be retired once the push works - save c28's local work first.
 
+**Status and next steps:** `.claude/plans/deploy-to-fleet.md`.
+
 **Why:** a clone on each target is state to keep in sync and a second source of truth. A push from one place leaves nothing on the targets to drift, and a deployed-commit marker file gives provenance.
 
 **How to apply:** `ssh c28-pc` / `ssh h80-pc` work key-only as admin `mizpe` (see ASCOM.Wise40's `machine-fleet` memory); remote default shell is cmd, so send PowerShell with `-EncodedCommand`. Deploys need a per-observatory manifest, a backup of the existing live folder, `.wsc` re-registration, and a refusal while ACP is running. Dome-pc must stop being a junction to the working tree - see [[acp-scripts-are-the-live-tree]].
