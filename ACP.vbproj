@@ -101,7 +101,7 @@
   <ItemGroup>
     <Content Include=".gitignore" />
     <Content Include="ACP-Weather.vbs" />
-    <Content Include="Scripts\FS2_Sync.vbs" />
+    <Content Include="Scripts\c28_Sync.vbs" />
     <Content Include="Scripts\ShutdownObs-Wise.vbs" />
     <Content Include="Scripts\StartupObs-Wise.vbs" />
     <Content Include="Scripts\Wise\H80.obs\qhy550p_com.py" />
