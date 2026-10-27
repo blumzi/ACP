@@ -149,7 +149,7 @@
     sub c28_startup
         if not wise_power.has_power("Telescope") then
             wise_power.power_on("Telescope")
-            wise_util.sleep 3
+            wise_util.sleep 10
         end if
 
         if not acp_util.telescopeconnected then
@@ -199,13 +199,6 @@
 
 
     sub c28_shutdown
-        '
-        ' The FS2 cannot Park, so:
-        '  - we need to send it to the parking coordinates
-        '  - CanPark and CanFindHome are false
-        '  - AtPark and AtHome are not relevant
-        '
-
         load_telescope_settings
 
         if not wise_power.has_power("Telescope") then
@@ -222,7 +215,8 @@
             c28_sync_to_absolute_encoders
         end if
 
-        c28_slew_to_parking_position
+        tele_info "parking"
+        acp_tele.park
 
         tele_info "disconnecting (dome as well)"
         acp_tele.connected = false
@@ -340,7 +334,7 @@
         dec_degrees = dec_degrees + dec_correction
 
         '
-        ' Sync the FS2 with the correct coordinates, unless the declination is out of its range
+        ' Sync the telescope with the correct coordinates, unless the declination is out of its range
         '
         dim msg
         if dec_degrees > -41 then
