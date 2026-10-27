@@ -29,6 +29,6 @@ file      Scheduler/StartupObs.vbs              {scheduler}\StartupObs.vbs
 file      Scheduler/ShutdownObs.vbs             {scheduler}\ShutdownObs.vbs
 
 # --- Weather ---
-file      ACP-Weather.vbs                       {acp}\
+# ACP-Weather.vbs is not integrated into ACP on any observatory, so it is not deployed.
 file      WeatherComponents/WiseWeather.wsc     {acp}\WeatherComponents\
 register  {acp}\WeatherComponents\WiseWeather.wsc
