@@ -325,18 +325,38 @@
         end if
 
         ' Calcullated corrections, by Shay Kaspi
-        dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
-        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-02:30:00")
+        ' dim ra_correction  :  ra_correction = acp_util.HMS_Hours("00:00:30")
+        ' dim dec_correction : dec_correction = acp_util.DMS_Degrees("-02:30:00")
+        '
+        ' These were until 2025. Nov 23
+        ' dim ra_correction  :  ra_correction = acp_util.HMS_Hours("01:31:00")
+        ' dim dec_correction : dec_correction = acp_util.DMS_Degrees("-08:06:00")
+        '
+        ' These are since 2025. Nov 23
+        dim ra_correction  :  ra_correction = acp_util.HMS_Hours("01:32:51")
+        dim dec_correction : dec_correction = acp_util.DMS_Degrees("-09:18:43")
 
         ra_hours = ra_hours + ra_correction
         dec_degrees = dec_degrees + dec_correction
 
         '
-        ' Sync the FS2 with the correct coordinates
+        ' Sync the FS2 with the correct coordinates, unless the declination is out of its range
         '
         dim msg
-        acp_tele.SyncToCoordinates ra_hours, dec_degrees
-        tele_info "synced to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
+        if dec_degrees > -41 then
+            if not acp_tele.connected then
+                acp_tele.connected = true
+            end if
+            tele_info "syncing to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
+
+            acp_tele.Tracking = true
+            acp_tele.SyncToCoordinates ra_hours, dec_degrees
+            acp_tele.Tracking = false
+            tele_info "synced to RA: " & acp_util.Hours_HMS(ra_hours) & ", DEC: " & acp_util.Degrees_DMS(dec_degrees, ":", ":", "")
+        else
+            msg = "Dec is lower than -41 Degrees (" & acp_util.Degrees_DMS(dec_degrees, ":", ":", "") & "), cannot sync!"
+            wise_util.fatal label, msg
+        end if
 
     end sub
 
