@@ -24,7 +24,7 @@ sub main
 
     wise_camera.startup
 
-    wise_util.task_run label & "loading FocusMax ...", """C:\Program Files (x86)\FocusMax V5\FocusMax.exe"""
+    start_focusmax wise_util, label, obs
 
     wise_tele.startup
 
@@ -37,3 +37,24 @@ sub main
     wise_util.info label
 
 end Sub
+
+'
+' Which FocusMax is installed differs per observatory, and the wrong one either is not there (c28 has
+' only V4) or cannot run (V4 on wise40).  An observatory not listed here is an error, not a guess.
+'
+sub start_focusmax(wise_util, label, obs)
+    dim folder
+
+    select case obs
+        case "c18"
+            folder = "FocusMax"
+        case "c28"
+            folder = "FocusMax V4"
+        case "wise40", "h80"
+            folder = "FocusMax V5"
+        case else
+            wise_util.fatal "StartupObs", label & "no FocusMax known for observatory '" & obs & "'"
+    end select
+
+    wise_util.task_run label & "loading FocusMax ...", """C:\Program Files (x86)\" & folder & "\FocusMax.exe"""
+end sub
