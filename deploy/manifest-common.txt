@@ -1,0 +1,34 @@
+# Every observatory.
+
+# --- ACP's top-level Scripts folder: the .vbs need no registration ---
+file      Scripts/Wise/WiseTrainCorrector.vbs   {acp}\Scripts\
+
+# --- Scripts\Wise: the components ---
+# Wise.Util and Wise.Power go first: Camera, Dome and Tele create them when they load.
+file      Scripts/Wise/Wise.Util.wsc            {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Power.wsc           {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Ascom.wsc           {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Camera.wsc          {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Dome.wsc            {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Http.wsc            {acp}\Scripts\Wise\
+file      Scripts/Wise/Wise.Tele.wsc            {acp}\Scripts\Wise\
+# Wise.Dli: kept until it is decided whether it is still needed (Wise.Power now picks the driver).
+file      Scripts/Wise/Wise.Dli.wsc             {acp}\Scripts\Wise\
+
+register  {acp}\Scripts\Wise\Wise.Util.wsc
+register  {acp}\Scripts\Wise\Wise.Power.wsc
+register  {acp}\Scripts\Wise\Wise.Ascom.wsc
+register  {acp}\Scripts\Wise\Wise.Camera.wsc
+register  {acp}\Scripts\Wise\Wise.Dome.wsc
+register  {acp}\Scripts\Wise\Wise.Http.wsc
+register  {acp}\Scripts\Wise\Wise.Tele.wsc
+register  {acp}\Scripts\Wise\Wise.Dli.wsc
+
+# --- Scheduler ---
+file      Scheduler/StartupObs.vbs              {scheduler}\StartupObs.vbs
+file      Scheduler/ShutdownObs.vbs             {scheduler}\ShutdownObs.vbs
+
+# --- Weather ---
+file      ACP-Weather.vbs                       {acp}\
+file      WeatherComponents/WiseWeather.wsc     {acp}\WeatherComponents\
+register  {acp}\WeatherComponents\WiseWeather.wsc

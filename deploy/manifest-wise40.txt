@@ -1,0 +1,4 @@
+# wise40 (dome-pc).  Nothing beyond manifest-common.txt.
+#
+# "Wise40 Action Test.vbs" and "Wise40 Calibration Run.vbs" (ASCOM.Wise40 repo, AcpScripts\) are no
+# longer needed (2026-10-27), so they are not deployed.  Any live copies are left to be removed by hand.

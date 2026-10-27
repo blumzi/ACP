@@ -42,8 +42,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "Scripts\Wise\*";                                 DestDir: "{#WiseScriptsDest}";       Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "WeatherComponents\WiseWeatherSetup\bin\Debug\*"; DestDir: "{#WeatherSetupDest}";      Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "WeatherComponents\WiseWeather.wsc";              DestDir: "{#WeatherComponentsDest}"; Flags: ignoreversion regserver 32bit;                 Permissions: users-full
-Source: "Scripts\StartupObs-Wise.vbs";                    DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
-Source: "Scripts\ShutdownObs-Wise.vbs";                   DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "Scheduler\StartupObs.vbs";                       DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
+Source: "Scheduler\ShutdownObs.vbs";                      DestDir: "{#SchedulerDest}";         Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "Scripts\c28_Sync.vbs";                           DestDir: "{#ScriptsDest}";           Flags: ignoreversion recursesubdirs createallsubdirs; Permissions: users-full
 Source: "UserActions-Wise.wsc";                           DestDir: "{#AcpDest}";               Flags: ignoreversion;                                 Permissions: users-full
 Source: "WiseSettings\*";                                 DestDir: "{#WiseSettingsDest}";      Flags: ignoreversion;                                 Permissions: users-full

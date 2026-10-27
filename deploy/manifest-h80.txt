@@ -1,0 +1,11 @@
+# h80 (h80-pc).
+
+# H80.obs holds the camera and mirror components and its own UserActions.wsc.
+tree      Scripts/Wise/H80.obs                  {acp}\Scripts\Wise\H80.obs
+register  {acp}\Scripts\Wise\H80.obs\Wise.H80.wsc
+register  {acp}\Scripts\Wise\H80.obs\Wise.H80.FlipMirror.wsc
+
+# Copied but deliberately NOT registered.  ACP.UserActions was unregistered on purpose on
+# 2026-10-22, and H80.obs\UserActions.wsc shares its CLSID with the top-level one, so registering
+# either replaces the other.  Check which one h80 is meant to run before registering.
+file      UserActions-Wise.wsc                  {acp}\

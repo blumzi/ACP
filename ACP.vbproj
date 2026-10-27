@@ -101,9 +101,14 @@
   <ItemGroup>
     <Content Include=".gitignore" />
     <Content Include="ACP-Weather.vbs" />
+    <Content Include="deploy\manifest-c28.txt" />
+    <Content Include="deploy\manifest-common.txt" />
+    <Content Include="deploy\manifest-h80.txt" />
+    <Content Include="deploy\manifest-wise40.txt" />
+    <Content Include="deploy\README.txt" />
+    <Content Include="Scheduler\ShutdownObs.vbs" />
+    <Content Include="Scheduler\StartupObs.vbs" />
     <Content Include="Scripts\c28_Sync.vbs" />
-    <Content Include="Scripts\ShutdownObs-Wise.vbs" />
-    <Content Include="Scripts\StartupObs-Wise.vbs" />
     <Content Include="Scripts\Wise\H80.obs\qhy550p_com.py" />
     <Content Include="Scripts\Wise\H80.obs\UserActions.wsc" />
     <Content Include="Scripts\Wise\H80.obs\Wise.H80.FlipMirror.wsc" />
