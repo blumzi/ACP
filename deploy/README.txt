@@ -5,7 +5,7 @@ What goes onto each machine's live ACP folders.  A machine's deploy is manifest-
 manifest-<observatory>.txt, where the observatory comes from the hostname the way Wise.Util.wsc
 maps it:
 
-    dome-pc -> wise40       c28-pc -> c28       h80-pc -> h80       wo-neo -> c18 (no manifest yet)
+    dome-pc -> wise40       c28-pc -> c28       h80-pc -> h80       wo-neo -> c18 (NOT managed)
 
 These files are only data.  The deploy script that reads them is not written yet; until it is,
 they are the written-down answer to "which file goes where, on which machine".
@@ -42,3 +42,12 @@ NOT COVERED
     is not decided where they go.
   - Removing files that should no longer be there, such as the live FS2_Sync.vbs.  A manifest
     only says what to put down.
+
+
+WO-NEO (c18) IS NOT MANAGED
+---------------------------
+
+Decided 2026-10-27: wo-neo stays as it is.  It is a plain ACP install that never ran the Wise
+scripts - no Scripts\Wise folder, no Wise components registered, and ACP's own JavaScript
+StartupObs.js / ShutdownObs.js in the Scheduler folder.  It has no manifest and the deploy script
+must not touch it.
