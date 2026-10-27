@@ -1,52 +1,48 @@
 WHERE THESE FILES GO
 ====================
 
-It depends on which directory they are in, and the two halves work differently.  This file used
-to say everything here "goes into" ACP's Scripts folder.  That is no longer true of Scripts\Wise.
+Nothing in this repository is read by ACP directly.  Since 2026-10-27 the live folders on dome-pc are
+ordinary folders, and the files get there by being deployed - see deploy\README.txt and the
+manifest-*.txt files, which say which file goes where on which machine.  Editing, switching branches,
+stash, clean and reset here do not change what ACP runs.
 
-
-Scripts\Wise\  --  ALREADY THERE.  DO NOT COPY.
-------------------------------------------------
-
-ACP reads this directory directly, through two junctions:
-
-    C:\Program Files (x86)\ACP Obs Control\Scripts\Wise
-        -> C:\Deploy\ACP\Scripts\Wise
-    C:\Deploy\ACP
-        -> this repository
-
-So editing a file here changes what ACP runs, immediately, with no copy step.  Two consequences
-that are easy to get caught by:
-
-  - Anything written into ACP's Scripts\Wise folder lands in this working tree and sits there
-    untracked until someone commits it.  Run "git status" after touching anything under ACP.
-
-  - Git operations are deployments.  Checking out a branch that lacks a script removes that
-    script from ACP's menu, live; the same goes for stash, clean and a hard reset.  Know whether
-    ACP is executing anything before switching branches.
-
-See .claude/memory/acp-scripts-are-the-live-tree.md.
-
-
-Scripts\ itself  --  COPY.
---------------------------
-
-    C:\Program Files (x86)\ACP Obs Control\Scripts
-
-Scripts\Wise is the ONLY junction under ACP's Scripts folder, so everything beside it - c28_Sync.vbs
-here - is an ordinary file that has to be put there by hand, and will drift from this repository if
-it is then edited in place.
+(Before that, ACP's Scripts\Wise was a junction into this working tree, and every git operation was a
+deployment.  Some older notes and commit messages still describe that.)
 
 
 NOT EVERYTHING IN ACP'S SCRIPTS FOLDER COMES FROM HERE
 ------------------------------------------------------
 
-Most of it ships with ACP.  "Wise40 Action Test.vbs" and "Wise40 Calibration Run.vbs" are tracked
-in the ASCOM.Wise40 repository under AcpScripts\ and copied in from there.
+Most of it ships with ACP.  "Wise40 Action Test.vbs" and "Wise40 Calibration Run.vbs" used to be
+copied in from the ASCOM.Wise40 repository (AcpScripts\); they are no longer needed and are not
+deployed.
 
 
 REGISTERING THE .wsc COMPONENTS
 -------------------------------
 
-Scripts\Wise\register does it, from a bash shell.  The .vbs scripts need no registration - ACP
-finds them by their being in the directory.
+The deploy script registers them (the "register" entries in deploy\manifest-*.txt; see
+deploy\README.txt).  Scripts\Wise\register is an older bash version of the same job, kept but no
+longer used, and out of date: it leaves out Wise.Dli.wsc and WiseWeather.wsc.  The .vbs scripts need
+no registration - ACP finds them by their being in the directory.
+
+
+WiseTrainCorrector.vbs
+----------------------
+
+ACP's Train Corrector with Moon exclusion added.  Asks for a minimum Moon distance at the start of the
+run, in degrees, and skips mapping points that fall closer than that; a rejected candidate is replaced,
+so the requested number of points still comes out.
+
+The Moon comes from JPL Horizons - topocentric for this site, which it reads from the mount - with a
+local formula as the fallback if the network is unavailable.  Whichever source answered, its
+uncertainty is added to the requested separation, so a marginal point is excluded rather than pointed
+at.
+
+It does NOT call the Wise40 driver, and must not be changed to.  An earlier version asked the driver
+for the Moon through an Action, and serving that Action killed ASCOM.RemoteServer outright - a native
+fast-fail with no managed exception and nothing in any log.  The Action is withdrawn.  The full
+account, including the explanations already ruled out, is in the ASCOM.Wise40 repo at
+.claude/memory/ascom-moonillumination-kills-the-process.md.
+
+It is deployed to ACP's top-level Scripts folder, beside the stock "Train Corrector.vbs".

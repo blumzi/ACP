@@ -1,0 +1,5 @@
+# c28 (c28-pc).
+
+# Replaces FS2_Sync.vbs.  Both call Wise.Tele.c28_sync_to_absolute_encoders, which does nothing
+# off c28, so it only goes here.
+file      Scripts/c28_Sync.vbs                  {acp}\Scripts\
