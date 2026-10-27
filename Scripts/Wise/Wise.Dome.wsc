@@ -282,7 +282,7 @@
             end with
         else
             err.Clear
-            wise_util.fatal "load_dome_settings: Cannot open settings file: " & jsonFile
+            wise_util.fatal "load_dome_settings", "Cannot open settings file: " & jsonFile
         end if
         f = nothing
 		fso = nothing
