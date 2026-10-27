@@ -14,8 +14,9 @@
          or if a file it would deploy has uncommitted changes in the repository (override: -AllowDirty);
       2. backs up each live file it is about to overwrite, under -BackupRoot\<date-time>\;
       3. copies the missing/different files;
-      4. registers (32-bit regsvr32) each .wsc that was copied and that a manifest says to register;
-      5. writes WiseDeployed.txt in the ACP folder: the commit and the files changed.
+      4. writes WiseDeployed.txt in the ACP folder: the commit and the files changed;
+      5. registers (32-bit regsvr32) each .wsc that was copied and that a manifest says to register, and
+         reads the registry back to confirm it.
 
     It never removes anything.  Files that should no longer be there (FS2_Sync.vbs, the Wise40 *.vbs on
     dome-pc) are left for a person to delete.
@@ -259,27 +260,8 @@ try {
     exit 1
 }
 
-$failed = 0
-if ($IsLive) {
-    foreach ($r in $toRegister) {
-        $p = Start-Process -FilePath $Regsvr32 -ArgumentList '/s', ('"{0}"' -f $r.Dest) -Wait -PassThru
-        # regsvr32 /s is silent even when it does nothing, so check the registry, not the exit code alone.
-        $clsid = ([regex]::Match((Get-Content -LiteralPath $r.Dest -Raw), 'classid\s*=\s*"(\{[0-9A-Fa-f-]+\})"')).Groups[1].Value
-        $url   = ''
-        if ($clsid) {
-            $key = "HKLM:\SOFTWARE\WOW6432Node\Classes\CLSID\$clsid"
-            if (Test-Path $key) { $url = [string](Get-ItemProperty -Path $key -Name ScriptletURL -ErrorAction SilentlyContinue).ScriptletURL }
-        }
-        $url = ($url -replace '^file:///', '').Replace('/', '\')
-        if ($p.ExitCode -eq 0 -and $url -ieq $r.Dest) {
-            Write-Host ("  registered {0}" -f $r.Dest)
-        } else {
-            $failed++
-            Write-Host ("  NOT CONFIRMED {0}  (regsvr32 exit {1}, registry says '{2}')" -f $r.Dest, $p.ExitCode, $url) -ForegroundColor Red
-        }
-    }
-}
-
+# The marker says what is on disk, so write it as soon as the copying is done and before registering:
+# a registration problem must not leave a marker that still describes the previous deploy.
 $marker = Join-Path $AcpRoot 'WiseDeployed.txt'
 $lines  = @(
     "commit:      $commit",
@@ -291,6 +273,37 @@ $lines  = @(
     'changed:'
 ) + @($copied | ForEach-Object { "  $($_.Dest)" })
 Set-Content -LiteralPath $marker -Value $lines -Encoding ASCII
+
+# regsvr32 /s is silent even when it does nothing, so read the registry back.  A CLSID's ScriptletURL is a
+# subkey whose default value is the file's URL, with spaces escaped (%20), in the 32-bit view.
+function Get-RegisteredPath([string]$Wsc) {
+    $clsid = ([regex]::Match((Get-Content -LiteralPath $Wsc -Raw), 'classid\s*=\s*"(\{[0-9A-Fa-f-]+\})"')).Groups[1].Value
+    if (-not $clsid) { return '(no classid in the file)' }
+    $key = "HKLM:\SOFTWARE\WOW6432Node\Classes\CLSID\$clsid\ScriptletURL"
+    if (-not (Test-Path $key)) { return '(not registered)' }
+    $url = [string](Get-Item $key).GetValue('')
+    return [Uri]::UnescapeDataString(($url -replace '^file:///', '')).Replace('/', '\')
+}
+
+$failed = 0
+if ($IsLive) {
+    try {
+        foreach ($r in $toRegister) {
+            $p   = Start-Process -FilePath $Regsvr32 -ArgumentList '/s', ('"{0}"' -f $r.Dest) -Wait -PassThru
+            $reg = Get-RegisteredPath $r.Dest
+            if ($p.ExitCode -eq 0 -and $reg -ieq $r.Dest) {
+                Write-Host ("  registered {0}" -f $r.Dest)
+            } else {
+                $failed++
+                Write-Host ("  NOT CONFIRMED {0}  (regsvr32 exit {1}, registry says '{2}')" -f $r.Dest, $p.ExitCode, $reg) -ForegroundColor Red
+            }
+        }
+    } catch {
+        Write-Host ("ERROR while registering: {0}" -f $_.Exception.Message) -ForegroundColor Red
+        Write-Host ("The files are copied and {0} is written, but registration did not finish." -f $marker) -ForegroundColor Red
+        exit 1
+    }
+}
 
 Write-Host ''
 if ($failed -gt 0) {
