@@ -8,4 +8,5 @@
 - [WSC registrations lost](wsc-registrations-lost.md) — 2026-10-22: every component had lost its CLSID, `Wise.Power` was never registered, and **`ACP.UserActions` is now unregistered on purpose**.
 - [wise-train-corrector branch (deleted)](wise-train-corrector-branch-unmerged.md) — compared and deleted 2026-10-27; its README paragraph moved to `Scripts/README.txt`.
 - [wo-neo is unmanaged](wo-neo-unmanaged.md) — c18 runs plain ACP, no Wise scripts, left out of the deploy; ssh is key-only as admin `mizpe`.
+- [c28 has no FS2](c28-no-fs2.md) — FS2 is obsolete; the encoder sync is operational; c28's live Wise.Tele is the reference for c28-only code (corrections, -41 guard, park).
 - [Deploy progress](deploy-progress.md) — 2026-10-27: dome-pc deployed; h80-pc dry-run only (6 files differ, diff them first); c28-pc not looked at; what deploy.ps1 hasn't been tested on.
