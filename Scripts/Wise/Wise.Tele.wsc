@@ -132,7 +132,7 @@
             end with
         else
             err.Clear
-            wise_util.fatal "load_telescope_settings: Cannot open settings file: " & jsonFile
+            wise_util.fatal "load_telescope_settings", "Cannot open settings file: " & jsonFile
         end if
         f = nothing
         fso = nothing
@@ -271,21 +271,21 @@
 
         reading = split(raw_reading, ",")           ' split the output at the comma
         if ubound(reading) <> 1 then                ' we should get two parts
-            wise_util.fatal label & "Bad reading from absolute encoders (reading: " & raw_reading & ")"
+            wise_util.fatal label, "Bad reading from absolute encoders (reading: " & raw_reading & ")"
         end if
 
         dec_reading = split(reading(0), ":")        ' split the first reading (declination) at collons
         if ubound(dec_reading) <> 2 then            ' we should get three parts
-            wise_util.fatal label & "Bad DEC absolute encoder reading: " & reading(0)
+            wise_util.fatal label, "Bad DEC absolute encoder reading: " & reading(0)
         end if
 
         ha_reading = split(reading(1), ":")         ' split the second reading (hour-angle) at collons
         if ubound(ha_reading) <> 2 then             ' we should get three parts
-            wise_util.fatal label & "Bad RA absolute encoder reading: " & reading(1)
+            wise_util.fatal label, "Bad RA absolute encoder reading: " & reading(1)
         end if
 
         if not ha_reading(2) = "NoError" or not dec_reading(2) = "NoError" then
-            wise_util.fatal label & "Error(s) from absolute encoders: " & raw_reading
+            wise_util.fatal label, "Error(s) from absolute encoders: " & raw_reading
         end if
 
         dec_ticks = dec_reading(1)
